@@ -19,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => \App\Http\Middleware\EnsureTenant::class,
         ]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        //
+    ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->render(function (Throwable $e, \Illuminate\Http\Request $request) {
+            return response($e->getMessage() . "\n" . $e->getTraceAsString(), 500)->header('Content-Type', 'text/plain');
+        });
     })->create();
