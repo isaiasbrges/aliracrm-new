@@ -19,6 +19,7 @@ RUN npm run build
 # 2. Build PHP e Servir (Production)
 # ==========================================
 FROM serversideup/php:8.2-fpm-nginx
+EXPOSE 8080
 WORKDIR /var/www/html
 
 USER root
