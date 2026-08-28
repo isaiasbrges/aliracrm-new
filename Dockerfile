@@ -32,6 +32,8 @@ COPY --chown=www-data:www-data . .
 
 # Copiar assets gerados pelo Vite no stage anterior (Isso corrige o erro do mix-manifest)
 COPY --chown=www-data:www-data --from=frontend /app/public/build ./public/build
+# Remover qualquer .env para forçar Laravel a usar variáveis de ambiente do Coolify
+RUN rm -f .env .env.example .env.production
 
 USER www-data
 
