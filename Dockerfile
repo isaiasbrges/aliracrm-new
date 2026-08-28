@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copiar arquivos de dependência e instalar
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
 # Copiar resto do código frontend
 COPY . .
