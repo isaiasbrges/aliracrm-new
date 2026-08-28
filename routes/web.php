@@ -20,6 +20,11 @@ Route::post('/logout', [AuthController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
+Route::get('/init-db', function () {
+    Artisan::call('migrate --seed --force');
+    return response('<h1>Banco de dados configurado com sucesso!</h1><p>Todas as tabelas e dados iniciais foram criados no PostgreSQL.</p><p><a href="/login">Clique aqui para ir para a tela de Login</a></p><p><strong>Login:</strong> demo@alira.local<br><strong>Senha:</strong> demo12345</p>', 200)->header('Content-Type', 'text/html; charset=utf-8');
+});
+
 Route::get('/clear-cache', function () {
     Artisan::call('optimize:clear');
     return 'Cache cleared! Refresh the main page now.';

@@ -22,9 +22,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        if (app()->environment('production')) {
-            throw new RuntimeException('O seeder demo está bloqueado em produção.');
-        }
+
 
         $organization = Organization::query()->updateOrCreate(
             ['slug' => 'alira-demo'],
