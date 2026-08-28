@@ -3,9 +3,9 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "production": "vite build",
-        "dev": "vite"
+        "build": "vite build --config vite.mix.js",
+        "production": "vite build --config vite.mix.js",
+        "dev": "vite --config vite.mix.js"
     },
     "devDependencies": {
         "axios": "^1.11.0",
