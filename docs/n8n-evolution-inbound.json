@@ -1,0 +1,66 @@
+{
+  "name": "Alira CRM - Evolution inbound",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "alira/evolution/inbound",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "evolution-webhook",
+      "name": "Evolution Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [280, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.ALIRA_CRM_URL + '/api/webhooks/evolution'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{'Bearer ' + $env.ALIRA_EVOLUTION_WEBHOOK_SECRET}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.body || $json}}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "forward-to-laravel",
+      "name": "Forward to Laravel",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 300]
+    }
+  ],
+  "connections": {
+    "Evolution Webhook": {
+      "main": [
+        [
+          {
+            "node": "Forward to Laravel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
