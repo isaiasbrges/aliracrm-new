@@ -21,8 +21,17 @@ Route::post('/logout', [AuthController::class, 'destroy'])
     ->name('logout');
 
 Route::get('/init-db', function () {
-    Artisan::call('migrate --seed --force');
-    return response('<h1>Banco de dados configurado com sucesso!</h1><p>Todas as tabelas e dados iniciais foram criados no PostgreSQL.</p><p><a href="/login">Clique aqui para ir para a tela de Login</a></p><p><strong>Login:</strong> demo@alira.local<br><strong>Senha:</strong> demo12345</p>', 200)->header('Content-Type', 'text/html; charset=utf-8');
+    try {
+        Artisan::call('migrate', ['--force' => true]);
+        $migrateOutput = Artisan::output();
+        
+        Artisan::call('db:seed', ['--force' => true]);
+        $seedOutput = Artisan::output();
+
+        return response("<h1>Banco de dados configurado com sucesso!</h1><pre style='background:#1e1e1e;color:#00ff00;padding:15px;border-radius:8px;'>{$migrateOutput}\n{$seedOutput}</pre><p><a href='/login' style='font-size:18px;font-weight:bold;'>Clique aqui para ir para a tela de Login</a></p><p><strong>Login:</strong> demo@alira.local<br><strong>Senha:</strong> demo12345</p>", 200)->header('Content-Type', 'text/html; charset=utf-8');
+    } catch (\Throwable $e) {
+        return response("<h1>Erro ao rodar migrações/seeder:</h1><pre style='background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;'>" . htmlspecialchars($e->getMessage()) . "\n\n" . htmlspecialchars($e->getTraceAsString()) . "</pre>", 500)->header('Content-Type', 'text/html; charset=utf-8');
+    }
 });
 
 Route::get('/clear-cache', function () {
