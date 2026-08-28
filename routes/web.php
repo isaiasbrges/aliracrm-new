@@ -55,3 +55,11 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/configuracoes/loja', [StoreSettingsController::class, 'edit'])->name('settings.store');
     Route::post('/configuracoes/loja', [StoreSettingsController::class, 'update'])->name('settings.store.update');
 });
+
+Route::get('/debug-log', function () {
+    $path = storage_path('logs/laravel.log');
+    if (file_exists($path)) {
+        return response(file_get_contents($path), 200)->header('Content-Type', 'text/plain');
+    }
+    return 'Log file not found.';
+});
