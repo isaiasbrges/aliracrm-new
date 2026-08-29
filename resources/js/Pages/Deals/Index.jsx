@@ -74,8 +74,8 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
         switch (priority) {
             case 'high':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
-                        🔥 Alta
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                        <Flame className="w-3 h-3 text-rose-500" /> Alta
                     </span>
                 );
             case 'low':
@@ -86,7 +86,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                 );
             default:
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                         Média
                     </span>
                 );
@@ -304,8 +304,8 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                                     <option value="contacted">Contato</option>
                                                     <option value="proposal">Proposta</option>
                                                     <option value="negotiation">Negociação</option>
-                                                    <option value="won">Ganho ✓</option>
-                                                    <option value="lost">Perdido ✕</option>
+                                                    <option value="won">Ganho</option>
+                                                    <option value="lost">Perdido</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -497,7 +497,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                     >
                                         <option value="low">Baixa</option>
                                         <option value="medium">Média</option>
-                                        <option value="high">🔥 Alta</option>
+                                        <option value="high">Alta</option>
                                     </select>
                                 </div>
                             </div>

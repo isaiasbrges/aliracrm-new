@@ -12,6 +12,8 @@ import {
     CreditCard,
     DollarSign,
     QrCode,
+    Banknote,
+    Phone,
     Sparkles
 } from 'lucide-react';
 
@@ -27,18 +29,34 @@ export default function SalesShow({ sale }) {
         window.print();
     };
 
-    const paymentLabel = (method) => {
+    const renderPaymentMethod = (method) => {
         switch (method) {
             case 'pix':
-                return '📱 Pix (Instantâneo)';
+                return (
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600">
+                        <QrCode className="w-3.5 h-3.5" /> Pix (Instantâneo)
+                    </span>
+                );
             case 'credit':
-                return '💳 Cartão de Crédito';
+                return (
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-blue-600">
+                        <CreditCard className="w-3.5 h-3.5" /> Cartão de Crédito
+                    </span>
+                );
             case 'debit':
-                return '💳 Cartão de Débito';
+                return (
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-indigo-600">
+                        <CreditCard className="w-3.5 h-3.5" /> Cartão de Débito
+                    </span>
+                );
             case 'cash':
-                return '💵 Dinheiro';
+                return (
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-amber-600">
+                        <Banknote className="w-3.5 h-3.5" /> Dinheiro
+                    </span>
+                );
             default:
-                return 'Outros';
+                return <span>Outros</span>;
         }
     };
 
@@ -122,7 +140,9 @@ export default function SalesShow({ sale }) {
                         {sale.customer ? (
                             <div>
                                 <p className="font-bold text-slate-900 text-sm">{sale.customer.name}</p>
-                                <p className="text-slate-500 font-mono mt-0.5">📱 {sale.customer.whatsapp}</p>
+                                <p className="text-slate-500 font-mono mt-0.5 flex items-center gap-1">
+                                    <Phone className="w-3 h-3 text-slate-400" /> {sale.customer.whatsapp}
+                                </p>
                                 {sale.customer.email && <p className="text-slate-400">{sale.customer.email}</p>}
                             </div>
                         ) : (
@@ -135,7 +155,10 @@ export default function SalesShow({ sale }) {
                             Atendimento & Vendedor
                         </span>
                         <p className="font-bold text-slate-900 text-sm">{sale.seller?.name || 'Vendedor Padrão'}</p>
-                        <p className="text-slate-500 mt-0.5">Forma de Pagamento: <b>{paymentLabel(sale.payment_method)}</b></p>
+                        <div className="text-slate-500 mt-1 flex sm:justify-end items-center gap-1.5">
+                            <span>Forma de Pagamento:</span>
+                            {renderPaymentMethod(sale.payment_method)}
+                        </div>
                     </div>
                 </div>
 

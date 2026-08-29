@@ -149,8 +149,9 @@ export default function CustomersIndex({ customers, metrics, search }) {
                                                         {customer.name}
                                                     </Link>
                                                     {customer.whatsapp_consent && (
-                                                        <span className="block text-[10px] text-emerald-600 font-semibold">
-                                                            ✓ Consentimento WhatsApp
+                                                        <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                                            Consentimento WhatsApp
                                                         </span>
                                                     )}
                                                 </div>
@@ -159,11 +160,13 @@ export default function CustomersIndex({ customers, metrics, search }) {
 
                                         <td className="py-3.5 px-4">
                                             <div className="space-y-0.5">
-                                                <p className="font-mono text-slate-700 font-medium">
-                                                    📱 {customer.whatsapp}
+                                                <p className="font-mono text-slate-700 font-medium flex items-center gap-1.5">
+                                                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                                                    {customer.whatsapp}
                                                 </p>
                                                 {customer.email && (
-                                                    <p className="text-slate-400 text-[11px] truncate max-w-[180px]">
+                                                    <p className="text-slate-400 text-[11px] truncate max-w-[180px] flex items-center gap-1">
+                                                        <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                                                         {customer.email}
                                                     </p>
                                                 )}

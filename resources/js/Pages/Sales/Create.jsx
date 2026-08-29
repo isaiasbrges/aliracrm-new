@@ -15,6 +15,7 @@ import {
     CreditCard,
     DollarSign,
     QrCode,
+    Banknote,
     Sparkles,
     ArrowLeft,
     Phone,
@@ -527,7 +528,7 @@ export default function SalesCreate({ products, customers: initialCustomers, sel
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="🔍 Buscar por nome do produto, SKU, tamanho ou cor..."
+                                placeholder="Buscar por nome do produto, SKU, tamanho ou cor..."
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition"
                             />
                         </div>
@@ -661,24 +662,29 @@ export default function SalesCreate({ products, customers: initialCustomers, sel
                             </label>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                                 {[
-                                    { id: 'pix', label: '📱 Pix' },
-                                    { id: 'credit', label: '💳 Crédito' },
-                                    { id: 'debit', label: '💳 Débito' },
-                                    { id: 'cash', label: '💵 Dinheiro' },
-                                ].map((method) => (
-                                    <button
-                                        key={method.id}
-                                        type="button"
-                                        onClick={() => setData('payment_method', method.id)}
-                                        className={`py-2 px-3 rounded-xl border font-semibold text-center transition-all ${
-                                            data.payment_method === method.id
-                                                ? 'bg-blue-50 text-blue-700 border-blue-500 ring-2 ring-blue-500/20'
-                                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                        }`}
-                                    >
-                                        {method.label}
-                                    </button>
-                                ))}
+                                    { id: 'pix', label: 'Pix', icon: QrCode, color: 'text-emerald-600' },
+                                    { id: 'credit', label: 'Crédito', icon: CreditCard, color: 'text-blue-600' },
+                                    { id: 'debit', label: 'Débito', icon: CreditCard, color: 'text-indigo-600' },
+                                    { id: 'cash', label: 'Dinheiro', icon: Banknote, color: 'text-amber-600' },
+                                ].map((method) => {
+                                    const Icon = method.icon;
+                                    const isSelected = data.payment_method === method.id;
+                                    return (
+                                        <button
+                                            key={method.id}
+                                            type="button"
+                                            onClick={() => setData('payment_method', method.id)}
+                                            className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                                isSelected
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-500 ring-2 ring-blue-500/20'
+                                                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            <Icon className={`w-3.5 h-3.5 ${method.color}`} />
+                                            <span>{method.label}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 

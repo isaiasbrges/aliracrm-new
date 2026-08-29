@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
-import { Sparkles, Lock, Mail, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Sparkles, Lock, Mail, ArrowRight, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export default function Login() {
     const { data, setData, post, processing, errors } = useForm({
@@ -65,7 +65,8 @@ export default function Login() {
 
                     {errors?.email && (
                         <div className="mb-5 p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
-                            <span>✕</span> {errors.email}
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                            <span>{errors.email}</span>
                         </div>
                     )}
 

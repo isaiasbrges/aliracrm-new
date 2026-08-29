@@ -71,8 +71,8 @@ export default function CustomerShow({ customer }) {
                                 <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base truncate">
                                     {customer.name}
                                 </h3>
-                                <p className="text-xs text-slate-400 font-mono mt-0.5">
-                                    📱 {customer.whatsapp}
+                                <p className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
+                                    <Phone className="w-3.5 h-3.5 text-slate-400" /> {customer.whatsapp}
                                 </p>
                             </div>
                         </div>
@@ -240,8 +240,9 @@ export default function CustomerShow({ customer }) {
                                         className="block p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition group"
                                     >
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                                                Status: {conv.status === 'open' ? '🟢 Aberta' : conv.status === 'closed' ? '⚪ Finalizada' : '🟡 Em atendimento'}
+                                            <span className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                                <span className={`w-2 h-2 rounded-full ${conv.status === 'open' ? 'bg-emerald-500' : conv.status === 'closed' ? 'bg-slate-400' : 'bg-amber-500'}`} />
+                                                {conv.status === 'open' ? 'Aberta' : conv.status === 'closed' ? 'Finalizada' : 'Em atendimento'}
                                             </span>
                                             <span className="text-[10px] text-slate-400">
                                                 {conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString('pt-BR') : ''}

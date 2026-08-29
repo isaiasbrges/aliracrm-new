@@ -209,8 +209,11 @@ export default function ConversationsIndex({
                                         <h3 className="text-xs font-bold text-slate-900 truncate">
                                             {activeConversation.customer?.name || `WhatsApp ${activeConversation.external_chat_id}`}
                                         </h3>
-                                        <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                                            <span>📱 {activeConversation.external_chat_id}</span>
+                                        <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                            <span className="flex items-center gap-1">
+                                                <Phone className="w-3 h-3 text-slate-400" />
+                                                {activeConversation.external_chat_id}
+                                            </span>
                                             {activeConversation.customer && (
                                                 <>
                                                     <span>•</span>
@@ -232,9 +235,9 @@ export default function ConversationsIndex({
                                         onChange={(e) => handleUpdateStatus(e.target.value)}
                                         className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 outline-none hover:bg-slate-50 transition shadow-2xs"
                                     >
-                                        <option value="open">🟢 Aberta</option>
-                                        <option value="in_progress">🟡 Em Atendimento</option>
-                                        <option value="closed">⚪ Finalizada</option>
+                                        <option value="open">Aberta</option>
+                                        <option value="in_progress">Em Atendimento</option>
+                                        <option value="closed">Finalizada</option>
                                     </select>
 
                                     {activeConversation.customer_id && (

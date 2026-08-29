@@ -6,17 +6,17 @@ import {
     Plus,
     Search,
     Download,
-    DollarSign,
+    Eye,
     Calendar,
-    ArrowUpRight,
-    Filter,
-    User,
-    CheckCircle2
+    CreditCard,
+    DollarSign,
+    QrCode,
+    Banknote
 } from 'lucide-react';
 
-export default function SalesIndex({ sales, metrics, search, paymentMethod }) {
-    const [searchTerm, setSearchTerm] = useState(search || '');
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(paymentMethod || '');
+export default function SalesIndex({ sales, metrics, search = '', paymentMethod = '' }) {
+    const [searchTerm, setSearchTerm] = useState(search);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(paymentMethod);
 
     const formatCurrency = (val) => {
         return new Intl.NumberFormat('pt-BR', {
@@ -35,18 +35,34 @@ export default function SalesIndex({ sales, metrics, search, paymentMethod }) {
         router.get('/vendas', { search: searchTerm, payment_method: selectedPaymentMethod }, { preserveState: true });
     };
 
-    const paymentLabel = (method) => {
+    const renderPaymentBadge = (method) => {
         switch (method) {
             case 'pix':
-                return '📱 Pix';
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <QrCode className="w-3 h-3" /> Pix
+                    </span>
+                );
             case 'credit':
-                return '💳 Crédito';
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                        <CreditCard className="w-3 h-3" /> Crédito
+                    </span>
+                );
             case 'debit':
-                return '💳 Débito';
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <CreditCard className="w-3 h-3" /> Débito
+                    </span>
+                );
             case 'cash':
-                return '💵 Dinheiro';
+                return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        <Banknote className="w-3 h-3" /> Dinheiro
+                    </span>
+                );
             default:
-                return 'Outros';
+                return <span className="text-slate-500 text-[10px]">Outros</span>;
         }
     };
 
@@ -133,11 +149,11 @@ export default function SalesIndex({ sales, metrics, search, paymentMethod }) {
                             onChange={(e) => handleFilterChange(e.target.value)}
                             className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 outline-none hover:bg-slate-50 transition"
                         >
-                            <option value="">Todas as Formas de Pagamento</option>
-                            <option value="pix">📱 Pix</option>
-                            <option value="credit">💳 Cartão de Crédito</option>
-                            <option value="debit">💳 Cartão de Débito</option>
-                            <option value="cash">💵 Dinheiro</option>
+                            <option value="">Todas as Formas</option>
+                            <option value="pix">Pix (Instantâneo)</option>
+                            <option value="credit">Cartão de Crédito</option>
+                            <option value="debit">Cartão de Débito</option>
+                            <option value="cash">Dinheiro</option>
                             <option value="other">Outros</option>
                         </select>
                     </div>
@@ -193,9 +209,7 @@ export default function SalesIndex({ sales, metrics, search, paymentMethod }) {
                                         </td>
 
                                         <td className="py-3.5 px-4">
-                                            <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700">
-                                                {paymentLabel(sale.payment_method)}
-                                            </span>
+                                            {renderPaymentBadge(sale.payment_method)}
                                         </td>
 
                                         <td className="py-3.5 px-4 text-right font-extrabold text-slate-900 font-['Space_Grotesk'] text-sm">
