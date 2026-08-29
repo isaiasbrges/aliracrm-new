@@ -89,18 +89,24 @@ class EvolutionWebhookController extends Controller
             $fromMe = (bool) ($key['fromMe'] ?? false);
             $pushName = (string) ($data['pushName'] ?? 'Cliente WhatsApp');
 
-            // Extrair o texto da mensagem
+            // Extrair o texto da mensagem ou transcrição de áudio via IA
             $messageContent = $data['message'] ?? [];
-            $body = data_get($messageContent, 'conversation')
-                ?? data_get($messageContent, 'extendedTextMessage.text')
-                ?? data_get($messageContent, 'imageMessage.caption')
-                ?? data_get($messageContent, 'documentMessage.caption')
-                ?? data_get($messageContent, 'videoMessage.caption')
-                ?? (isset($messageContent['imageMessage']) ? '📷 [Foto recebida]' : null)
-                ?? (isset($messageContent['audioMessage']) ? '🎵 [Áudio recebido]' : null)
-                ?? (isset($messageContent['documentMessage']) ? '📄 [Documento recebido]' : null)
-                ?? (isset($messageContent['stickerMessage']) ? '🏷️ [Figurinha]' : null)
-                ?? '[Mensagem recebida]';
+            $transcription = data_get($payload, 'transcription')
+                ?? data_get($payload, 'data.transcription')
+                ?? data_get($payload, 'body.transcription');
+
+            $body = $transcription
+                ? "🎙️ [Áudio Transcrito]: " . $transcription
+                : (data_get($messageContent, 'conversation')
+                    ?? data_get($messageContent, 'extendedTextMessage.text')
+                    ?? data_get($messageContent, 'imageMessage.caption')
+                    ?? data_get($messageContent, 'documentMessage.caption')
+                    ?? data_get($messageContent, 'videoMessage.caption')
+                    ?? (isset($messageContent['imageMessage']) ? '📷 [Foto recebida]' : null)
+                    ?? (isset($messageContent['audioMessage']) ? '🎵 [Áudio recebido]' : null)
+                    ?? (isset($messageContent['documentMessage']) ? '📄 [Documento recebido]' : null)
+                    ?? (isset($messageContent['stickerMessage']) ? '🏷️ [Figurinha]' : null)
+                    ?? '[Mensagem recebida]');
 
             // 1. Localizar a loja pela instância (ex: dyvinus -> Loja Dyvinus)
             $store = Store::query()->where('slug', $instance)->where('active', true)->first();
