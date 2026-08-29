@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { Sparkles, Lock, Mail, ArrowRight, CheckCircle2, ShieldCheck, AlertCircle, Store, Building2 } from 'lucide-react';
+import { Sparkles, Lock, Mail, ArrowRight, CheckCircle2, ShieldCheck, AlertCircle, ShoppingBag, Store, Building2 } from 'lucide-react';
 
 export default function Login({ targetStore }) {
-    const isStoreLogin = !!targetStore;
-    const accentColor = targetStore?.accent_color || '#2563eb';
+    const storeName = targetStore?.name || 'Dyvinuss Looks';
+    const storeSlug = targetStore?.slug || 'dyvinuss-looks';
+    const accentColor = targetStore?.accent_color || '#db2777';
 
     const { data, setData, post, processing, errors } = useForm({
         email: 'demo@alira.local',
         password: 'demo12345',
         remember: true,
-        store_slug: targetStore?.slug || '',
+        store_slug: storeSlug,
     });
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const endpoint = isStoreLogin ? `/loja/${targetStore.slug}/login` : '/login';
+        const endpoint = targetStore ? `/loja/${storeSlug}/login` : '/login';
         post(endpoint);
     };
 
@@ -24,95 +25,101 @@ export default function Login({ targetStore }) {
             email: 'demo@alira.local',
             password: 'demo12345',
             remember: true,
-            store_slug: targetStore?.slug || '',
+            store_slug: storeSlug,
         });
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0a1329] to-slate-900 text-slate-100 flex items-center justify-center p-4 selection:bg-blue-600 selection:text-white relative overflow-hidden font-sans">
-            <Head title={isStoreLogin ? `Entrar - ${targetStore.name}` : 'Entrar no Alira CRM'} />
+        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#150a1d] to-slate-900 text-slate-100 flex items-center justify-center p-4 selection:bg-pink-600 selection:text-white relative overflow-hidden font-sans">
+            <Head title={`Entrar · ${storeName}`} />
 
-            {/* Glowing background shapes */}
+            {/* Glowing background ambient shapes in Dyvinuss Pink */}
             <div
-                className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-20"
+                className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-30 animate-pulse duration-1000"
                 style={{ background: accentColor }}
             />
-            <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+            <div
+                className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-25"
+                style={{ background: `linear-gradient(135deg, ${accentColor}, #9333ea)` }}
+            />
 
             <div className="w-full max-w-md relative z-10">
-                {/* Logo & Header */}
-                <div className="text-center mb-8">
-                    {isStoreLogin ? (
-                        <div>
-                            {targetStore.logo_url ? (
-                                <img
-                                    src={targetStore.logo_url}
-                                    alt={targetStore.name}
-                                    className="w-16 h-16 rounded-2xl object-contain bg-white p-2 mx-auto shadow-xl mb-3 border border-white/20"
-                                />
-                            ) : (
-                                <div
-                                    className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-white shadow-xl mb-3 border border-white/20"
-                                    style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}
-                                >
-                                    <Store className="w-8 h-8" />
-                                </div>
-                            )}
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs font-semibold mb-2">
-                                <Building2 className="w-3.5 h-3.5" style={{ color: accentColor }} />
-                                <span>Acesso Exclusivo à Filial</span>
-                            </div>
-                            <h1 className="font-['Space_Grotesk'] text-2xl font-bold text-white tracking-tight">
-                                {targetStore.name}
-                            </h1>
-                            <p className="text-slate-400 text-xs mt-1">
-                                Entre com seu usuário para operar esta loja.
-                            </p>
-                        </div>
+                {/* Logo & Brand Header */}
+                <div className="text-center mb-7">
+                    {targetStore?.logo_url ? (
+                        <img
+                            src={targetStore.logo_url}
+                            alt={storeName}
+                            className="w-20 h-20 rounded-3xl object-contain bg-white/10 backdrop-blur-md p-3 mx-auto shadow-2xl shadow-pink-500/20 mb-3 border border-pink-500/30"
+                        />
                     ) : (
-                        <div>
-                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-xl shadow-blue-500/25 mb-4 border border-blue-400/30 animate-in zoom-in-95 duration-500">
-                                <Sparkles className="w-7 h-7" />
+                        <div
+                            className="inline-flex items-center justify-center w-20 h-20 rounded-3xl text-white shadow-2xl mb-3 border border-pink-400/40 relative group transform hover:scale-105 transition-all duration-300"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, #f43f5e)`,
+                                boxShadow: `0 20px 40px -10px ${accentColor}55`,
+                            }}
+                        >
+                            <span className="font-['Space_Grotesk'] text-2xl font-extrabold tracking-wider">
+                                DY
+                            </span>
+                            <div className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-white text-pink-600 flex items-center justify-center shadow-md">
+                                <Sparkles className="w-3.5 h-3.5 fill-pink-500" />
                             </div>
-                            <h1 className="font-['Space_Grotesk'] text-3xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
-                                Alira <span className="text-xs uppercase font-extrabold tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-lg font-sans">CRM</span>
-                            </h1>
-                            <p className="text-slate-400 text-sm mt-2">
-                                Painel Master Multi-Store & Central de Vendas
-                            </p>
                         </div>
                     )}
+
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-950/60 border border-pink-500/30 text-pink-300 text-xs font-semibold mb-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Acesso Exclusivo à Loja</span>
+                    </div>
+
+                    <h1 className="font-['Space_Grotesk'] text-3xl font-extrabold text-white tracking-tight">
+                        {storeName}
+                    </h1>
+                    <p className="text-slate-400 text-xs mt-1">
+                        Central de Vendas, WhatsApp & Atendimento VIP
+                    </p>
                 </div>
 
                 {/* Login Card */}
-                <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-7 sm:p-8 shadow-2xl">
-                    {/* Demo Account Indicator */}
+                <div className="bg-slate-900/85 backdrop-blur-2xl border border-pink-500/20 rounded-3xl p-7 sm:p-8 shadow-2xl shadow-black/60 relative overflow-hidden">
+                    {/* Top glowing line in brand color */}
+                    <div
+                        className="absolute top-0 left-0 right-0 h-1"
+                        style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }}
+                    />
+
+                    {/* Demo Account Quick-Fill Helper */}
                     <div
                         onClick={handleFillDemo}
-                        className="mb-6 p-3 rounded-2xl bg-blue-950/60 border border-blue-500/30 hover:border-blue-500/60 flex items-center justify-between cursor-pointer transition-all duration-200 group"
+                        className="mb-6 p-3 rounded-2xl bg-pink-950/40 border border-pink-500/30 hover:border-pink-500/70 hover:bg-pink-950/70 flex items-center justify-between cursor-pointer transition-all duration-200 group"
+                        title="Clique para preencher os dados de teste"
                     >
                         <div className="flex items-center gap-2.5">
-                            <ShieldCheck className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                            <ShieldCheck className="w-4 h-4 text-pink-400 group-hover:scale-110 transition-transform" />
                             <div className="text-left">
-                                <p className="text-xs font-semibold text-blue-300">Ambiente de Demonstração</p>
-                                <p className="text-[11px] text-slate-400">Clique para preencher: demo@alira.local</p>
+                                <p className="text-xs font-semibold text-pink-200">Acesso Administrador Dyvinuss</p>
+                                <p className="text-[11px] text-slate-400">demo@alira.local · demo12345</p>
                             </div>
                         </div>
-                        <span className="text-[11px] font-semibold text-blue-400 bg-blue-900/50 px-2 py-1 rounded-lg border border-blue-500/20 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                            Usar Demo
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-pink-500/20 text-pink-300 border border-pink-500/40 px-2 py-0.5 rounded-md group-hover:bg-pink-500 group-hover:text-white transition-colors">
+                            Preencher
                         </span>
                     </div>
 
-                    {errors?.email && (
-                        <div className="mb-5 p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                            <span>{errors.email}</span>
+                    {/* Global Error Banner */}
+                    {Object.keys(errors).length > 0 && (
+                        <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-3">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                            <span>{errors.email || errors.password || errors.store_slug || 'Credenciais inválidas.'}</span>
                         </div>
                     )}
 
+                    {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                                 E-mail de Acesso
                             </label>
                             <div className="relative">
@@ -121,16 +128,16 @@ export default function Login({ targetStore }) {
                                     type="email"
                                     value={data.email}
                                     onChange={(e) => setData('email', e.target.value)}
+                                    placeholder="seu.email@dyvinuss.com"
                                     required
-                                    placeholder="seu.email@empresa.com"
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                    className="w-full text-xs pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 outline-none transition"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                                Senha
+                            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                                Senha Secreta
                             </label>
                             <div className="relative">
                                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -138,58 +145,68 @@ export default function Login({ targetStore }) {
                                     type="password"
                                     value={data.password}
                                     onChange={(e) => setData('password', e.target.value)}
-                                    required
                                     placeholder="••••••••"
-                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                    required
+                                    className="w-full text-xs pl-10 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 outline-none transition"
                                 />
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                        <div className="flex items-center justify-between text-xs py-1">
+                            <label className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-slate-300">
                                 <input
                                     type="checkbox"
                                     checked={data.remember}
                                     onChange={(e) => setData('remember', e.target.checked)}
-                                    className="rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                    className="w-4 h-4 rounded border-slate-700 text-pink-600 focus:ring-pink-500/20 bg-slate-800"
                                 />
-                                Manter conectado
+                                <span>Lembrar meu login</span>
                             </label>
+                            <span className="text-[11px] text-pink-400/80 hover:text-pink-300 cursor-pointer">
+                                Esqueceu a senha?
+                            </span>
                         </div>
 
                         <button
                             type="submit"
                             disabled={processing}
-                            className="w-full mt-2 flex items-center justify-center gap-2 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition-all transform active:scale-98 disabled:opacity-50"
-                            style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}
+                            className="w-full py-3.5 px-4 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all duration-200 transform active:scale-95 disabled:opacity-50"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, #f43f5e)`,
+                                boxShadow: `0 10px 25px -5px ${accentColor}66`,
+                            }}
                         >
                             {processing ? (
-                                <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span className="flex items-center gap-2">
+                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Autenticando...
+                                </span>
                             ) : (
                                 <>
-                                    <span>{isStoreLogin ? `Entrar em ${targetStore.name}` : 'Acessar Painel Master'}</span>
+                                    <span>Entrar no Painel Dyvinuss</span>
                                     <ArrowRight className="w-4 h-4" />
                                 </>
                             )}
                         </button>
                     </form>
-
-                    {isStoreLogin ? (
-                        <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
-                            <Link
-                                href="/login"
-                                className="text-xs text-slate-400 hover:text-blue-400 transition"
-                            >
-                                ← Entrar pelo Painel Master Geral
-                            </Link>
-                        </div>
-                    ) : null}
                 </div>
 
-                {/* Footer Info */}
-                <p className="text-center text-xs text-slate-500 mt-6">
-                    Alira CRM & Omnichannel · Multi-Store Architecture
-                </p>
+                {/* Footer Security Badges */}
+                <div className="mt-8 text-center text-xs text-slate-500 space-y-2">
+                    <div className="flex items-center justify-center gap-4 text-[11px]">
+                        <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            Criptografia TLS/SSL Ativa
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-pink-500" />
+                            WhatsApp Integrado
+                        </span>
+                    </div>
+                    <p className="text-[10px] text-slate-600">
+                        Dyvinuss Looks · Alira CRM Engine © 2026
+                    </p>
+                </div>
             </div>
         </div>
     );

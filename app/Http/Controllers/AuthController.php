@@ -13,18 +13,24 @@ class AuthController extends Controller
 {
     public function create(Request $request, ?string $storeSlug = null): Response
     {
-        $targetStore = null;
+        $store = null;
         if ($storeSlug) {
             $store = Store::query()->where('slug', $storeSlug)->where('active', true)->first();
-            if ($store) {
-                $targetStore = [
-                    'id'           => $store->id,
-                    'name'         => $store->name,
-                    'slug'         => $store->slug,
-                    'accent_color' => $store->accent_color ?? '#2563eb',
-                    'logo_url'     => $store->logo_url,
-                ];
-            }
+        }
+        if (!$store) {
+            $store = Store::query()->where('slug', 'dyvinuss-looks')->first()
+                ?? Store::query()->where('active', true)->first();
+        }
+
+        $targetStore = null;
+        if ($store) {
+            $targetStore = [
+                'id'           => $store->id,
+                'name'         => $store->name,
+                'slug'         => $store->slug,
+                'accent_color' => $store->accent_color ?? '#db2777',
+                'logo_url'     => $store->logo_url,
+            ];
         }
 
         return Inertia::render('Auth/Login', [
