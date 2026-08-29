@@ -105,6 +105,53 @@ class EvolutionService
     }
 
     /**
+     * Enviar Imagem / Foto via WhatsApp (Evolution API)
+     */
+    public function sendMedia(string $instanceName, string $phoneNumber, string $mediaUrl, ?string $caption = null, string $mediaType = 'image'): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'Evolution API não configurada'];
+        }
+
+        $cleanNumber = preg_replace('/\D/', '', $phoneNumber);
+        if (!str_starts_with($cleanNumber, '55') && strlen($cleanNumber) >= 10) {
+            $cleanNumber = '55' . $cleanNumber;
+        }
+
+        try {
+            $url = "{$this->baseUrl}/message/sendMedia/{$instanceName}";
+            $payload = [
+                'number' => $cleanNumber,
+                'media' => $mediaUrl,
+                'mediatype' => $mediaType,
+                'caption' => $caption ?: '',
+            ];
+
+            $response = Http::withoutVerifying()->withHeaders([
+                'apikey' => $this->globalApiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(20)->post($url, $payload);
+
+            if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
+                $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
+                $altUrl = "{$this->baseUrl}/message/sendMedia/{$altInstance}";
+                $response = Http::withoutVerifying()->withHeaders([
+                    'apikey' => $this->globalApiKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(20)->post($altUrl, $payload);
+            }
+
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return ['success' => false, 'error' => $response->body()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Enviar Enquete / Opções Selecionáveis nativas do WhatsApp (Poll)
      */
     public function sendPoll(string $instanceName, string $phoneNumber, string $title, array $options, int $selectableCount = 1): array

@@ -97,32 +97,54 @@ class ConversationController extends Controller
         }
 
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:5000'],
+            'body'      => ['nullable', 'string', 'max:5000'],
+            'image'     => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,gif', 'max:5120'],
+            'image_url' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        if (empty($data['body']) && !$request->hasFile('image') && empty($data['image_url'])) {
+            return back()->withErrors(['body' => 'Digite uma mensagem ou anexe uma imagem.']);
+        }
+
         $toPhone = $conversation->customer?->whatsapp ?? $conversation->external_chat_id;
+
+        $mediaUrl = null;
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store("chat_media/{$storeId}", 'public');
+            $mediaUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+        } elseif (!empty($data['image_url'])) {
+            $mediaUrl = $data['image_url'];
+        }
+
+        $msgType = $mediaUrl ? 'image' : 'text';
+        $msgBody = $data['body'] ?: ($mediaUrl ? '📷 Foto enviada' : '');
 
         $message = Message::create([
             'organization_id' => $organizationId,
             'conversation_id' => $conversation->id,
-            'direction' => 'outbound',
-            'type' => 'text',
-            'body' => $data['body'],
-            'status' => 'sent',
-            'from_phone' => 'store',
-            'to_phone' => $toPhone,
-            'sent_at' => now(),
+            'direction'       => 'outbound',
+            'type'            => $msgType,
+            'body'            => $msgBody,
+            'status'          => 'sent',
+            'from_phone'      => 'store',
+            'to_phone'        => $toPhone,
+            'metadata'        => $mediaUrl ? ['media_url' => $mediaUrl] : null,
+            'sent_at'         => now(),
         ]);
 
         $conversation->update([
-            'last_message_preview' => $data['body'],
-            'last_message_at' => now(),
-            'status' => $conversation->status === 'closed' ? 'open' : $conversation->status,
+            'last_message_preview' => $msgBody,
+            'last_message_at'      => now(),
+            'status'               => $conversation->status === 'closed' ? 'open' : $conversation->status,
         ]);
 
         // Disparar envio real via Evolution API se configurado
         $instanceName = $store->slug ?? 'dyvinus';
-        $evoResult = $this->evolutionService->sendMessage($instanceName, $toPhone, $data['body']);
+        if ($mediaUrl) {
+            $evoResult = $this->evolutionService->sendMedia($instanceName, $toPhone, $mediaUrl, $data['body'] ?? '');
+        } else {
+            $evoResult = $this->evolutionService->sendMessage($instanceName, $toPhone, $data['body']);
+        }
 
         if ($evoResult['success'] ?? false) {
             $message->update(['status' => 'delivered']);

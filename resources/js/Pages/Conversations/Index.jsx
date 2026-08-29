@@ -28,6 +28,10 @@ import {
     CheckSquare,
     Layers,
     SlidersHorizontal,
+    Paperclip,
+    Image as ImageIcon,
+    Mic,
+    Volume2,
 } from 'lucide-react';
 
 const DEFAULT_QUICK_REPLIES = [
@@ -160,10 +164,29 @@ export default function ConversationsIndex({
     const [isAddingReply, setIsAddingReply] = useState(false);
 
     const messagesEndRef = useRef(null);
+    const chatFileInputRef = useRef(null);
+    const [chatImagePreview, setChatImagePreview] = useState(null);
 
     const { data: msgData, setData: setMsgData, post: postMessage, processing: sendingMsg, reset: resetMsg } = useForm({
         body: '',
+        image: null,
+        image_url: '',
     });
+
+    const handleChatFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setMsgData('image', file);
+            setChatImagePreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleRemoveChatImage = () => {
+        setMsgData('image', null);
+        setMsgData('image_url', '');
+        setChatImagePreview(null);
+        if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+    };
 
     const { data: newChatData, setData: setNewChatData, post: postNewChat, processing: startingChat } = useForm({
         customer_id: '',
@@ -175,11 +198,16 @@ export default function ConversationsIndex({
 
     const handleSendMessage = (e) => {
         e.preventDefault();
-        if (!msgData.body.trim() || !activeConversation) return;
+        if ((!msgData.body.trim() && !msgData.image && !msgData.image_url) || !activeConversation) return;
 
         postMessage(`/atendimentos/${activeConversation.id}/mensagens`, {
             preserveScroll: true,
-            onSuccess: () => resetMsg(),
+            forceFormData: true,
+            onSuccess: () => {
+                resetMsg();
+                setChatImagePreview(null);
+                if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+            },
         });
     };
 
@@ -494,6 +522,8 @@ export default function ConversationsIndex({
                                 messages.map((msg) => {
                                     const isOutbound = msg.direction === 'outbound';
                                     const isInteractive = msg.type === 'interactive' || msg.body?.startsWith('📊');
+                                    const mediaUrl = msg.metadata?.media_url || (msg.type === 'image' && msg.body?.startsWith('http') ? msg.body : null);
+                                    const isAudioTranscribed = msg.body?.includes('[Áudio Transcrito') || msg.body?.includes('[Áudio]');
 
                                     return (
                                         <div
@@ -515,7 +545,31 @@ export default function ConversationsIndex({
                                                         Opções Selecionáveis Enviadas
                                                     </div>
                                                 )}
-                                                <p className="whitespace-pre-wrap leading-relaxed text-xs">{msg.body}</p>
+
+                                                {/* Badge de Áudio Transcrito por IA (N8N / Whisper) */}
+                                                {isAudioTranscribed && (
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300/80 px-2 py-0.5 rounded-md mb-1.5 w-fit">
+                                                        <Mic className="w-3 h-3 text-amber-700 animate-pulse" />
+                                                        Áudio Transcrito por IA
+                                                    </div>
+                                                )}
+
+                                                {/* Imagem / Foto Anexada */}
+                                                {mediaUrl && (
+                                                    <div className="mb-2 rounded-xl overflow-hidden border border-black/10 bg-black/5 max-w-sm">
+                                                        <img
+                                                            src={mediaUrl}
+                                                            alt="Foto WhatsApp"
+                                                            className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
+                                                            onClick={() => window.open(mediaUrl, '_blank')}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {msg.body && (!mediaUrl || msg.body !== '📷 Foto enviada') && (
+                                                    <p className="whitespace-pre-wrap leading-relaxed text-xs">{msg.body}</p>
+                                                )}
+
                                                 <div
                                                     className={`text-[10px] mt-1.5 flex items-center justify-end gap-1 ${
                                                         isOutbound ? 'text-blue-100' : 'text-slate-400'
@@ -587,19 +641,69 @@ export default function ConversationsIndex({
                             ))}
                         </div>
 
+                        {/* Pré-visualização da Imagem Anexada */}
+                        {chatImagePreview && (
+                            <div className="px-4 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between gap-3 animate-in fade-in-50">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-300 bg-white shrink-0 shadow-2xs">
+                                        <img src={chatImagePreview} alt="Preview Anexo" className="w-full h-full object-cover" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                                            <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                                            Imagem Pronta para Envio
+                                        </p>
+                                        <p className="text-[11px] text-slate-500">
+                                            Digite uma legenda abaixo (opcional) ou clique em Enviar.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveChatImage}
+                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                    title="Remover imagem"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
+
                         {/* Message Input Box */}
                         <form onSubmit={handleSendMessage} className="p-3 bg-white flex items-center gap-2 border-t border-slate-100">
+                            {/* Input Oculto de Arquivo */}
+                            <input
+                                type="file"
+                                ref={chatFileInputRef}
+                                onChange={handleChatFileChange}
+                                accept="image/*"
+                                className="hidden"
+                            />
+
+                            {/* Botão de Anexo (Paperclip) */}
+                            <button
+                                type="button"
+                                onClick={() => chatFileInputRef.current?.click()}
+                                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-blue-600 transition shrink-0 active:scale-95"
+                                title="Anexar Imagem / Foto do Look"
+                            >
+                                <Paperclip className="w-4 h-4" />
+                            </button>
+
                             <input
                                 type="text"
                                 value={msgData.body}
                                 onChange={(e) => setMsgData('body', e.target.value)}
-                                placeholder="Digite sua mensagem ou escolha uma opção acima..."
+                                placeholder={chatImagePreview ? "Adicione uma legenda para a imagem..." : "Digite sua mensagem ou escolha uma opção acima..."}
                                 className="flex-1 text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none transition"
                             />
+
                             <button
                                 type="submit"
-                                disabled={sendingMsg || !msgData.body.trim()}
+                                disabled={sendingMsg || (!msgData.body.trim() && !msgData.image && !msgData.image_url)}
                                 className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 transition active:scale-95 disabled:opacity-50"
+                                title="Enviar mensagem"
                             >
                                 <Send className="w-4 h-4" />
                             </button>
