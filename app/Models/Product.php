@@ -12,12 +12,15 @@ class Product extends Model
     use HasFactory;
 
     protected $fillable = [
-        'organization_id', 'store_id', 'category_id', 'name', 'sku', 'price', 'status',
+        'organization_id', 'store_id', 'category_id', 'name', 'sku', 'price', 'original_price', 'image_url', 'status',
     ];
 
     protected function casts(): array
     {
-        return ['price' => 'decimal:2'];
+        return [
+            'price' => 'decimal:2',
+            'original_price' => 'decimal:2',
+        ];
     }
 
     public function organization(): BelongsTo

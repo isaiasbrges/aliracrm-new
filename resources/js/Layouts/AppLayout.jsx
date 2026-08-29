@@ -130,12 +130,13 @@ export default function AppLayout({ title, children }) {
     };
 
     const navItems = [
-        { name: 'Dashboard',        href: '/',            icon: LayoutDashboard, exact: true },
-        { name: 'Funil de Vendas',  href: '/funil',       icon: Kanban },
-        { name: 'Central WhatsApp', href: '/atendimentos', icon: MessageSquare },
-        { name: 'Clientes',         href: '/clientes',    icon: Users },
-        { name: 'Vendas & PDV',     href: '/vendas',      icon: ShoppingBag },
-        { name: 'Produtos',         href: '/produtos',    icon: Package },
+        { name: 'Dashboard',        href: '/',                  icon: LayoutDashboard, exact: true },
+        { name: 'Funil de Vendas',  href: '/funil',             icon: Kanban },
+        { name: 'Central WhatsApp', href: '/atendimentos',       icon: MessageSquare },
+        { name: 'Catálogo Online',  href: '/catalogo/gerenciar', icon: Sparkles },
+        { name: 'Clientes',         href: '/clientes',          icon: Users },
+        { name: 'Vendas & PDV',     href: '/vendas',            icon: ShoppingBag },
+        { name: 'Produtos',         href: '/produtos',          icon: Package },
     ];
 
     const isActive = (item) =>

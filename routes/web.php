@@ -82,7 +82,16 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/clientes/{customer}', [CustomerController::class, 'show'])->name('customers.show');
     Route::post('/clientes/{customer}/aniversario', [CustomerController::class, 'sendBirthdayGift'])->name('customers.sendBirthdayGift');
 
-    // Produtos
+    // Gestor do Catálogo Online & Personalização Visual (Logo e Cores)
+    Route::get('/catalogo/gerenciar', [\App\Http\Controllers\CatalogManagerController::class, 'index'])->name('catalog.manager.index');
+    Route::post('/catalogo/produtos', [\App\Http\Controllers\CatalogManagerController::class, 'storeProduct'])->name('catalog.manager.products.store');
+    Route::put('/catalogo/produtos/{product}', [\App\Http\Controllers\CatalogManagerController::class, 'updateProduct'])->name('catalog.manager.products.update');
+    Route::delete('/catalogo/produtos/{product}', [\App\Http\Controllers\CatalogManagerController::class, 'destroyProduct'])->name('catalog.manager.products.destroy');
+    Route::post('/catalogo/categorias', [\App\Http\Controllers\CatalogManagerController::class, 'storeCategory'])->name('catalog.manager.categories.store');
+    Route::delete('/catalogo/categorias/{category}', [\App\Http\Controllers\CatalogManagerController::class, 'destroyCategory'])->name('catalog.manager.categories.destroy');
+    Route::post('/catalogo/branding', [\App\Http\Controllers\CatalogManagerController::class, 'updateBranding'])->name('catalog.manager.branding.update');
+
+    // Produtos & Estoque
     Route::get('/produtos', [ProductController::class, 'index'])->name('products.index');
     Route::post('/produtos', [ProductController::class, 'store'])->name('products.store');
 
