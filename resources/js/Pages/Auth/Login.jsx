@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
-import { Sparkles, Lock, Mail, ArrowRight, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Head, useForm, Link } from '@inertiajs/react';
+import { Sparkles, Lock, Mail, ArrowRight, CheckCircle2, ShieldCheck, AlertCircle, Store, Building2 } from 'lucide-react';
 
-export default function Login() {
+export default function Login({ targetStore }) {
+    const isStoreLogin = !!targetStore;
+    const accentColor = targetStore?.accent_color || '#2563eb';
+
     const { data, setData, post, processing, errors } = useForm({
         email: 'demo@alira.local',
         password: 'demo12345',
         remember: true,
+        store_slug: targetStore?.slug || '',
     });
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post('/login');
+        const endpoint = isStoreLogin ? `/loja/${targetStore.slug}/login` : '/login';
+        post(endpoint);
     };
 
     const handleFillDemo = () => {
@@ -19,29 +24,64 @@ export default function Login() {
             email: 'demo@alira.local',
             password: 'demo12345',
             remember: true,
+            store_slug: targetStore?.slug || '',
         });
     };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-[#0a1329] to-slate-900 text-slate-100 flex items-center justify-center p-4 selection:bg-blue-600 selection:text-white relative overflow-hidden font-sans">
-            <Head title="Entrar no Alira CRM" />
+            <Head title={isStoreLogin ? `Entrar - ${targetStore.name}` : 'Entrar no Alira CRM'} />
 
             {/* Glowing background shapes */}
-            <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+            <div
+                className="absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-20"
+                style={{ background: accentColor }}
+            />
             <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
             <div className="w-full max-w-md relative z-10">
                 {/* Logo & Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-xl shadow-blue-500/25 mb-4 border border-blue-400/30 animate-in zoom-in-95 duration-500">
-                        <Sparkles className="w-7 h-7" />
-                    </div>
-                    <h1 className="font-['Space_Grotesk'] text-3xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
-                        Alira <span className="text-xs uppercase font-extrabold tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-lg font-sans">CRM</span>
-                    </h1>
-                    <p className="text-slate-400 text-sm mt-2">
-                        Acesse o workspace de vendas e atendimento da sua loja.
-                    </p>
+                    {isStoreLogin ? (
+                        <div>
+                            {targetStore.logo_url ? (
+                                <img
+                                    src={targetStore.logo_url}
+                                    alt={targetStore.name}
+                                    className="w-16 h-16 rounded-2xl object-contain bg-white p-2 mx-auto shadow-xl mb-3 border border-white/20"
+                                />
+                            ) : (
+                                <div
+                                    className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-white shadow-xl mb-3 border border-white/20"
+                                    style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}
+                                >
+                                    <Store className="w-8 h-8" />
+                                </div>
+                            )}
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs font-semibold mb-2">
+                                <Building2 className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                                <span>Acesso Exclusivo à Filial</span>
+                            </div>
+                            <h1 className="font-['Space_Grotesk'] text-2xl font-bold text-white tracking-tight">
+                                {targetStore.name}
+                            </h1>
+                            <p className="text-slate-400 text-xs mt-1">
+                                Entre com seu usuário para operar esta loja.
+                            </p>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white shadow-xl shadow-blue-500/25 mb-4 border border-blue-400/30 animate-in zoom-in-95 duration-500">
+                                <Sparkles className="w-7 h-7" />
+                            </div>
+                            <h1 className="font-['Space_Grotesk'] text-3xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
+                                Alira <span className="text-xs uppercase font-extrabold tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-lg font-sans">CRM</span>
+                            </h1>
+                            <p className="text-slate-400 text-sm mt-2">
+                                Painel Master Multi-Store & Central de Vendas
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Login Card */}
@@ -120,23 +160,35 @@ export default function Login() {
                         <button
                             type="submit"
                             disabled={processing}
-                            className="w-full mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-blue-600/30 transition-all transform active:scale-98 disabled:opacity-50"
+                            className="w-full mt-2 flex items-center justify-center gap-2 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition-all transform active:scale-98 disabled:opacity-50"
+                            style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}
                         >
                             {processing ? (
                                 <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             ) : (
                                 <>
-                                    <span>Acessar Painel</span>
+                                    <span>{isStoreLogin ? `Entrar em ${targetStore.name}` : 'Acessar Painel Master'}</span>
                                     <ArrowRight className="w-4 h-4" />
                                 </>
                             )}
                         </button>
                     </form>
+
+                    {isStoreLogin ? (
+                        <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
+                            <Link
+                                href="/login"
+                                className="text-xs text-slate-400 hover:text-blue-400 transition"
+                            >
+                                ← Entrar pelo Painel Master Geral
+                            </Link>
+                        </div>
+                    ) : null}
                 </div>
 
                 {/* Footer Info */}
                 <p className="text-center text-xs text-slate-500 mt-6">
-                    Alira CRM & Omnichannel · Multi-Tenant Architecture
+                    Alira CRM & Omnichannel · Multi-Store Architecture
                 </p>
             </div>
         </div>

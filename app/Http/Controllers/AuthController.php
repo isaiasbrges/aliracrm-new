@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Store;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,16 +11,33 @@ use Inertia\Response;
 
 class AuthController extends Controller
 {
-    public function create(): Response
+    public function create(Request $request, ?string $storeSlug = null): Response
     {
-        return Inertia::render('Auth/Login');
+        $targetStore = null;
+        if ($storeSlug) {
+            $store = Store::query()->where('slug', $storeSlug)->where('active', true)->first();
+            if ($store) {
+                $targetStore = [
+                    'id'           => $store->id,
+                    'name'         => $store->name,
+                    'slug'         => $store->slug,
+                    'accent_color' => $store->accent_color ?? '#2563eb',
+                    'logo_url'     => $store->logo_url,
+                ];
+            }
+        }
+
+        return Inertia::render('Auth/Login', [
+            'targetStore' => $targetStore,
+        ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, ?string $storeSlug = null): RedirectResponse
     {
         $credentials = $request->validate([
             'email' => ['required', 'email', 'max:190'],
             'password' => ['required', 'string', 'min:8'],
+            'store_slug' => ['nullable', 'string'],
         ]);
 
         $remember = $request->boolean('remember');
@@ -45,6 +63,19 @@ class AuthController extends Controller
             return back()->withErrors([
                 'email' => 'Sua organização não está ativa.',
             ])->onlyInput('email');
+        }
+
+        $targetSlug = $storeSlug ?? $request->input('store_slug');
+        if ($targetSlug) {
+            $store = Store::query()
+                ->where('organization_id', $user->organization_id)
+                ->where('slug', $targetSlug)
+                ->where('active', true)
+                ->first();
+
+            if ($store) {
+                $user->forceFill(['last_store_id' => $store->id])->saveQuietly();
+            }
         }
 
         return redirect()->intended(route('dashboard'));

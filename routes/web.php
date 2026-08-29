@@ -8,18 +8,45 @@ use App\Http\Controllers\DealController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\StoreSettingsController;
+use App\Models\Store;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Artisan;
 
+// Rotas de Autenticação Global & por Loja Específica
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
     Route::post('/login', [AuthController::class, 'store'])->middleware('throttle:login')->name('login.store');
+
+    // Login Exclusivo de Filial / Loja com Identidade Visual Própria
+    Route::get('/loja/{slug}/login', [AuthController::class, 'create'])->name('store.login');
+    Route::post('/loja/{slug}/login', [AuthController::class, 'store'])->middleware('throttle:login')->name('store.login.store');
 });
+
+// Acesso Direto à Loja pelo Link: /loja/{slug}
+Route::get('/loja/{slug}', function (Request $request, string $slug) {
+    $store = Store::query()->where('slug', $slug)->where('active', true)->firstOrFail();
+
+    if ($request->user()) {
+        if ($store->organization_id === $request->user()->organization_id) {
+            $request->user()->forceFill(['last_store_id' => $store->id])->saveQuietly();
+            return redirect()->route('dashboard')->with('success', "Acessando a filial '{$store->name}'");
+        }
+    }
+
+    return redirect()->route('store.login', ['slug' => $slug]);
+})->name('store.direct');
 
 Route::post('/logout', [AuthController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
+// Atalhos Master Multi-Store
+Route::middleware(['auth', 'tenant'])->group(function (): void {
+    Route::get('/admin', fn () => redirect()->route('settings.store'));
+    Route::get('/multi-store', fn () => redirect()->route('settings.store'));
+});
+
+// Workspace Autenticado Multi-Tenant
 Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/', DashboardController::class)->name('dashboard');
 

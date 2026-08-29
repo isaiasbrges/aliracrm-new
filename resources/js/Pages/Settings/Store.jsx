@@ -16,9 +16,11 @@ import {
     ArrowRightLeft,
     Check,
     X,
-    ShoppingBag,
-    Package,
-    Users,
+    Copy,
+    ExternalLink,
+    Globe,
+    Lock,
+    Link2,
 } from 'lucide-react';
 
 /* ── Paleta de cores sugeridas ── */
@@ -100,7 +102,10 @@ export default function StoreSettings({ store, organization, stores = [] }) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [logoPreview, setLogoPreview] = useState(null);
     const [removeLogo, setRemoveLogo] = useState(false);
+    const [copiedKey, setCopiedKey] = useState(null);
     const fileRef = useRef(null);
+
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aliracrm.site';
 
     // Form para atualizar loja atual
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -116,6 +121,14 @@ export default function StoreSettings({ store, organization, stores = [] }) {
         accent_color: '#2563eb',
         logo: null,
     });
+
+    const handleCopy = (text, key) => {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            setCopiedKey(key);
+            setTimeout(() => setCopiedKey(null), 3000);
+        }
+    };
 
     const handleFile = (e) => {
         const file = e.target.files[0];
@@ -173,7 +186,7 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                         Administração & Multi-Lojas
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                        Gerencie filiais, crie novas lojas e customize a identidade visual da sua marca.
+                        Links de acesso individuais de cada loja, login exclusivo e gestão centralizada.
                     </p>
                 </div>
 
@@ -184,6 +197,42 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                     >
                         <Plus className="w-4 h-4" />
                         + Criar Nova Loja / Filial
+                    </button>
+                </div>
+            </div>
+
+            {/* Master Multi-Store Banner */}
+            <div className="mb-6 p-4.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white border border-slate-700 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold shrink-0">
+                        <Globe className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-blue-400 block">
+                            Link Master · Painel Administrador Geral Multi-Store
+                        </span>
+                        <p className="text-xs text-slate-300 font-mono mt-0.5 select-all">
+                            {baseUrl}/admin
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        onClick={() => handleCopy(`${baseUrl}/admin`, 'master')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/10 transition active:scale-95"
+                    >
+                        {copiedKey === 'master' ? (
+                            <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-400">Copiado!</span>
+                            </>
+                        ) : (
+                            <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copiar Link Master</span>
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
@@ -199,7 +248,7 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                     }`}
                 >
                     <Store className="w-4 h-4" />
-                    Lojas & Filiais da Rede ({stores.length})
+                    Lojas & Links da Rede ({stores.length})
                 </button>
                 <button
                     onClick={() => setActiveTab('identity')}
@@ -210,16 +259,19 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                     }`}
                 >
                     <Palette className="w-4 h-4" />
-                    Identidade Visual (Loja Ativa: {store.name})
+                    Identidade Visual da Loja Ativa ({store.name})
                 </button>
             </div>
 
-            {/* ──────────────── TAB 1: LISTA DE LOJAS ──────────────── */}
+            {/* ──────────────── TAB 1: LISTA DE LOJAS & LINKS ──────────────── */}
             {activeTab === 'stores' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {stores.map((s) => {
                             const isCurrent = s.is_current;
+                            const directUrl = `${baseUrl}/loja/${s.slug}`;
+                            const loginUrl = `${baseUrl}/loja/${s.slug}/login`;
+
                             return (
                                 <div
                                     key={s.id}
@@ -230,20 +282,21 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                                     }`}
                                 >
                                     <div>
-                                        <div className="flex items-start justify-between gap-3 mb-4">
+                                        {/* Store Header */}
+                                        <div className="flex items-start justify-between gap-3 mb-3">
                                             <div className="flex items-center gap-3">
                                                 {s.logo_url ? (
                                                     <img
                                                         src={s.logo_url}
                                                         alt={s.name}
-                                                        className="w-11 h-11 rounded-2xl object-contain bg-slate-50 p-1 border border-slate-100 shrink-0"
+                                                        className="w-12 h-12 rounded-2xl object-contain bg-slate-50 p-1 border border-slate-100 shrink-0"
                                                     />
                                                 ) : (
                                                     <div
-                                                        className="w-11 h-11 rounded-2xl text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0"
+                                                        className="w-12 h-12 rounded-2xl text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0"
                                                         style={{ background: s.accent_color || '#2563eb' }}
                                                     >
-                                                        <Store className="w-5 h-5" />
+                                                        <Store className="w-6 h-6" />
                                                     </div>
                                                 )}
                                                 <div>
@@ -251,7 +304,7 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                                                         {s.name}
                                                     </h3>
                                                     <span className="text-[11px] font-mono text-slate-400">
-                                                        slug: {s.slug}
+                                                        /loja/{s.slug}
                                                     </span>
                                                 </div>
                                             </div>
@@ -267,8 +320,67 @@ export default function StoreSettings({ store, organization, stores = [] }) {
                                             )}
                                         </div>
 
+                                        {/* Links Box */}
+                                        <div className="my-3 p-3 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-2 text-xs">
+                                            {/* Link Direto */}
+                                            <div>
+                                                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-0.5">
+                                                    <span className="font-semibold flex items-center gap-1">
+                                                        <Link2 className="w-3 h-3 text-blue-600" /> Link de Acesso Direto:
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(directUrl, `direct-${s.id}`)}
+                                                        className="text-blue-600 hover:text-blue-800 font-semibold"
+                                                    >
+                                                        {copiedKey === `direct-${s.id}` ? 'Copiado!' : 'Copiar'}
+                                                    </button>
+                                                </div>
+                                                <div className="font-mono text-[11px] text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200/60 truncate flex items-center justify-between">
+                                                    <span className="truncate">{directUrl}</span>
+                                                    <a
+                                                        href={directUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-slate-400 hover:text-blue-600 ml-1.5 shrink-0"
+                                                        title="Abrir em nova aba"
+                                                    >
+                                                        <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                </div>
+                                            </div>
+
+                                            {/* Link Login Exclusivo */}
+                                            <div>
+                                                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-0.5">
+                                                    <span className="font-semibold flex items-center gap-1">
+                                                        <Lock className="w-3 h-3 text-indigo-600" /> Link de Login da Loja:
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(loginUrl, `login-${s.id}`)}
+                                                        className="text-indigo-600 hover:text-indigo-800 font-semibold"
+                                                    >
+                                                        {copiedKey === `login-${s.id}` ? 'Copiado!' : 'Copiar'}
+                                                    </button>
+                                                </div>
+                                                <div className="font-mono text-[11px] text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200/60 truncate flex items-center justify-between">
+                                                    <span className="truncate">{loginUrl}</span>
+                                                    <a
+                                                        href={loginUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-slate-400 hover:text-indigo-600 ml-1.5 shrink-0"
+                                                        title="Abrir em nova aba"
+                                                    >
+                                                        <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         {/* Store Metrics */}
-                                        <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-100 text-center my-3">
+                                        <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-slate-100 text-center my-2">
                                             <div>
                                                 <span className="text-[10px] text-slate-400 font-semibold block">VENDAS</span>
                                                 <span className="text-xs font-bold text-slate-800 font-['Space_Grotesk']">
