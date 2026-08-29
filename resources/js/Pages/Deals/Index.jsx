@@ -79,7 +79,14 @@ const STAGE_TEMPLATES = {
     ],
 };
 
-export default function DealsIndex({ columns, totalPipelineValue, customers, recencySegments, chipHealth }) {
+export default function DealsIndex({
+    columns,
+    totalPipelineValue,
+    customers,
+    catalogProducts = [],
+    recencySegments,
+    chipHealth
+}) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [draggingDealId, setDraggingDealId] = useState(null);
     const [activeTab, setActiveTab] = useState('kanban');
@@ -123,6 +130,46 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
             style: 'currency',
             currency: 'BRL',
         }).format(val || 0);
+    };
+
+    const insertTagIntoForm = (form, field, tag) => {
+        const current = form.data[field] || '';
+        form.setData(field, current + (current.length > 0 && !current.endsWith(' ') && !current.endsWith('\n') ? ' ' : '') + tag);
+    };
+
+    const insertLookIntoForm = (form, field, look) => {
+        if (!look) return;
+        const current = form.data[field] || '';
+        const formattedPrice = formatCurrency(look.price);
+        const textToInsert = `✨ *${look.name}* por apenas ${formattedPrice}!\n👗 Veja os detalhes e compre aqui: {catalogo_link}`;
+        form.setData(field, current ? current + '\n\n' + textToInsert : textToInsert);
+    };
+
+    const renderLivePreview = (template, sampleCustomer, sampleDeal) => {
+        if (!template) return '';
+        const firstName = sampleCustomer?.name ? sampleCustomer.name.split(' ')[0] : 'Juliana';
+        const fullName = sampleCustomer?.name || 'Juliana Santos';
+        const val = sampleDeal?.value ? formatCurrency(sampleDeal.value) : 'R$ 189,90';
+        const title = sampleDeal?.title || 'Vestido Musse';
+        const storeName = 'Dyvinuss Looks';
+        const catalogLink = 'https://aliracrm.site/catalogo';
+
+        let res = template
+            .replace(/\{cliente\}|\{nome\}|\{primeiro_nome\}/g, firstName)
+            .replace(/\{nome_completo\}/g, fullName)
+            .replace(/\{saudacao\}/g, 'Olá')
+            .replace(/\{valor\}/g, val)
+            .replace(/\{titulo\}/g, title)
+            .replace(/\{loja\}/g, storeName)
+            .replace(/\{catalogo_link\}/g, catalogLink)
+            .replace(/\{cidade\}/g, sampleCustomer?.city || 'São Paulo');
+
+        res = res.replace(/\{([^{}]+)\}/g, (match, p1) => {
+            const parts = p1.split('|');
+            return parts[0] || match;
+        });
+
+        return res;
     };
 
     const handleCreateDeal = (e) => {
@@ -680,10 +727,10 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                 </div>
             )}
 
-            {/* ── MODAL: DISPARO INDIVIDUAL DE WHATSAPP ── */}
+            {/* ── MODAL: DISPARO INDIVIDUAL DE WHATSAPP (ULTRA DINÂMICO) ── */}
             {selectedDealForDispatch && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
@@ -691,10 +738,10 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                        Disparo de WhatsApp para Lead
+                                        Disparo Dinâmico de WhatsApp
                                     </h3>
                                     <p className="text-xs text-slate-500">
-                                        {selectedDealForDispatch.customer?.name} · {selectedDealForDispatch.customer?.whatsapp}
+                                        {selectedDealForDispatch.customer?.name} · <span className="font-mono font-bold text-slate-700">{selectedDealForDispatch.customer?.whatsapp}</span>
                                     </p>
                                 </div>
                             </div>
@@ -706,27 +753,20 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                             </button>
                         </div>
 
-                        <form onSubmit={handleSingleDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto">
+                        <form onSubmit={handleSingleDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto pr-1">
                             {/* Templates Sugeridos para esta Etapa */}
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                                    Sugestões Inteligentes para esta Etapa:
+                                    Modelos Prontos para esta Etapa:
                                 </label>
-                                <div className="space-y-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     {(STAGE_TEMPLATES[selectedDealForDispatch.stage] || STAGE_TEMPLATES.lead).map((tpl, i) => (
                                         <div
                                             key={i}
                                             onClick={() => {
-                                                const firstName = selectedDealForDispatch.customer?.name
-                                                    ? selectedDealForDispatch.customer.name.split(' ')[0]
-                                                    : 'Cliente';
-                                                const val = formatCurrency(selectedDealForDispatch.value);
                                                 singleDispatchForm.setData({
-                                                    message: tpl.text
-                                                        .replace('{cliente}', firstName)
-                                                        .replace('{valor}', val)
-                                                        .replace('{titulo}', selectedDealForDispatch.title),
+                                                    message: tpl.text,
                                                     advance_stage: tpl.advanceTo || '',
                                                 });
                                             }}
@@ -735,7 +775,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                             <span className="font-bold text-xs text-slate-800 group-hover:text-emerald-700 block mb-0.5">
                                                 {tpl.title}
                                             </span>
-                                            <p className="text-[11px] text-slate-600 line-clamp-2">
+                                            <p className="text-[10px] text-slate-500 line-clamp-2">
                                                 {tpl.text}
                                             </p>
                                         </div>
@@ -743,10 +783,66 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                 </div>
                             </div>
 
+                            {/* Inserir Variáveis Dinâmicas com 1 Clique */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                                        Tags Dinâmicas (Clique para Inserir):
+                                    </label>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        { label: '+ {cliente}', tag: '{cliente}' },
+                                        { label: '+ {saudacao}', tag: '{saudacao}' },
+                                        { label: '+ {valor}', tag: '{valor}' },
+                                        { label: '+ {titulo}', tag: '{titulo}' },
+                                        { label: '+ {loja}', tag: '{loja}' },
+                                        { label: '+ {catalogo_link}', tag: '{catalogo_link}' },
+                                        { label: '+ {cidade}', tag: '{cidade}' },
+                                        { label: '+ {Olá|Oi|Oie}', tag: '{Olá|Oi|Oie}' },
+                                    ].map((v, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => insertTagIntoForm(singleDispatchForm, 'message', v.tag)}
+                                            className="text-[11px] font-mono font-bold px-2 py-1 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 text-slate-700 rounded-lg border border-slate-200 transition"
+                                        >
+                                            {v.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Anexar Look do Catálogo */}
+                            {catalogProducts && catalogProducts.length > 0 && (
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+                                        Inserir Look do Catálogo na Mensagem:
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const p = catalogProducts.find(x => x.id === parseInt(e.target.value));
+                                            if (p) insertLookIntoForm(singleDispatchForm, 'message', p);
+                                            e.target.value = '';
+                                        }}
+                                        className="w-full text-xs font-semibold bg-pink-50/50 border border-pink-200 rounded-xl px-3 py-2 text-pink-900 outline-none"
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>Selecione um look para anexar à mensagem...</option>
+                                        {catalogProducts.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                👗 {p.name} — {formatCurrency(p.price)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             {/* Mensagem a ser disparada */}
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                                    Mensagem do WhatsApp (Edite se desejar) *
+                                    Texto da Mensagem *
                                 </label>
                                 <textarea
                                     value={singleDispatchForm.data.message}
@@ -757,11 +853,28 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                 />
                             </div>
 
+                            {/* Preview Visual em Tempo Real do WhatsApp */}
+                            {singleDispatchForm.data.message && (
+                                <div className="p-3.5 rounded-2xl bg-emerald-950/5 border border-emerald-200/60 space-y-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3 text-emerald-600" />
+                                        Pré-Visualização Real no WhatsApp:
+                                    </span>
+                                    <div className="bg-[#dcf8c6] text-slate-900 p-3 rounded-2xl rounded-tr-xs shadow-xs text-xs whitespace-pre-wrap leading-relaxed max-w-md font-sans">
+                                        {renderLivePreview(singleDispatchForm.data.message, selectedDealForDispatch.customer, selectedDealForDispatch)}
+                                        <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-emerald-800/60">
+                                            <span>{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <Check className="w-3 h-3" />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Avançar Estágio Automaticamente */}
                             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                                 <div>
                                     <span className="font-bold text-xs text-slate-800 block">Avançar Etapa do Lead?</span>
-                                    <span className="text-[11px] text-slate-500">Move o card automaticamente após o disparo</span>
+                                    <span className="text-[11px] text-slate-500">Move o card automaticamente após o envio</span>
                                 </div>
                                 <select
                                     value={singleDispatchForm.data.advance_stage}
@@ -798,10 +911,10 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                 </div>
             )}
 
-            {/* ── MODAL: DISPARO EM MASSA POR COLUNA ── */}
+            {/* ── MODAL: DISPARO EM MASSA POR COLUNA (ULTRA DINÂMICO) ── */}
             {selectedColumnForBulk && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
@@ -812,7 +925,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                         Disparo em Massa Inteligente: {selectedColumnForBulk.label}
                                     </h3>
                                     <p className="text-xs text-slate-500">
-                                        Disparo para {selectedColumnForBulk.deals.length} oportunidades com proteção Spintax
+                                        Disparo dinâmico para {selectedColumnForBulk.deals.length} oportunidades
                                     </p>
                                 </div>
                             </div>
@@ -824,18 +937,72 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                             </button>
                         </div>
 
-                        <form onSubmit={handleBulkDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto">
+                        <form onSubmit={handleBulkDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto pr-1">
                             {/* Alerta Anti-Ban Spintax */}
                             <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 text-xs text-indigo-900 flex items-start gap-2.5">
                                 <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                                 <div>
-                                    <b>Proteção Anti-Ban Ativada:</b> O sistema varia automaticamente as saudações com Spintax como <code>{"{Olá|Oi|Oie}"}</code> para que nenhum cliente receba mensagens idênticas.
+                                    <b>Proteção Anti-Ban & Variação Inteligente:</b> O sistema varia automaticamente as saudações com Spintax como <code>{"{Olá|Oi|Oie}"}</code> e personaliza o nome e valor de cada oportunidade.
                                 </div>
                             </div>
 
+                            {/* Inserir Variáveis Dinâmicas */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                                    Tags Rápidas:
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        { label: '+ {cliente}', tag: '{cliente}' },
+                                        { label: '+ {saudacao}', tag: '{saudacao}' },
+                                        { label: '+ {valor}', tag: '{valor}' },
+                                        { label: '+ {titulo}', tag: '{titulo}' },
+                                        { label: '+ {loja}', tag: '{loja}' },
+                                        { label: '+ {catalogo_link}', tag: '{catalogo_link}' },
+                                        { label: '+ {cidade}', tag: '{cidade}' },
+                                        { label: '+ {Olá|Oi|Oie}', tag: '{Olá|Oi|Oie}' },
+                                    ].map((v, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => insertTagIntoForm(bulkDispatchForm, 'message_template', v.tag)}
+                                            className="text-[11px] font-mono font-bold px-2 py-1 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-800 text-slate-700 rounded-lg border border-slate-200 transition"
+                                        >
+                                            {v.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Anexar Look do Catálogo */}
+                            {catalogProducts && catalogProducts.length > 0 && (
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+                                        Inserir Look do Catálogo no Template:
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const p = catalogProducts.find(x => x.id === parseInt(e.target.value));
+                                            if (p) insertLookIntoForm(bulkDispatchForm, 'message_template', p);
+                                            e.target.value = '';
+                                        }}
+                                        className="w-full text-xs font-semibold bg-pink-50/50 border border-pink-200 rounded-xl px-3 py-2 text-pink-900 outline-none"
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>Selecione um look para anexar ao template...</option>
+                                        {catalogProducts.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                👗 {p.name} — {formatCurrency(p.price)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                                    Template da Mensagem (com Tags Dinâmicas) *
+                                    Template da Mensagem em Massa *
                                 </label>
                                 <textarea
                                     value={bulkDispatchForm.data.message_template}
@@ -844,15 +1011,24 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                     required
                                     className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none leading-relaxed"
                                 />
-                                <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] text-slate-500">
-                                    <span className="font-bold">Tags disponíveis:</span>
-                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{cliente}"}</code>
-                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{valor}"}</code>
-                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{titulo}"}</code>
-                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{loja}"}</code>
-                                    <code className="bg-indigo-100 px-1 py-0.5 rounded text-indigo-700 font-bold">{"{Olá|Oi|Oie}"} (Spintax)</code>
-                                </div>
                             </div>
+
+                            {/* Preview Visual em Tempo Real */}
+                            {bulkDispatchForm.data.message_template && (
+                                <div className="p-3.5 rounded-2xl bg-indigo-950/5 border border-indigo-200/60 space-y-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3 text-indigo-600" />
+                                        Exemplo de Prévia para um Lead da Lista:
+                                    </span>
+                                    <div className="bg-[#dcf8c6] text-slate-900 p-3 rounded-2xl rounded-tr-xs shadow-xs text-xs whitespace-pre-wrap leading-relaxed max-w-md font-sans">
+                                        {renderLivePreview(bulkDispatchForm.data.message_template, selectedColumnForBulk.deals[0]?.customer, selectedColumnForBulk.deals[0])}
+                                        <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-emerald-800/60">
+                                            <span>{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <Check className="w-3 h-3" />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                                 <div>
@@ -894,10 +1070,10 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                 </div>
             )}
 
-            {/* ── MODAL: DISPARO DE REATIVAÇÃO (RADAR) ── */}
+            {/* ── MODAL: DISPARO DE REATIVAÇÃO (RADAR - ULTRA DINÂMICO) ── */}
             {selectedCustomerForReactivation && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
@@ -905,10 +1081,10 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                        Disparo de Reconquista / Reativação
+                                        Reconquista & Reativação de Cliente
                                     </h3>
                                     <p className="text-xs text-slate-500">
-                                        {selectedCustomerForReactivation.name} · {selectedCustomerForReactivation.whatsapp}
+                                        {selectedCustomerForReactivation.name} · <span className="font-mono font-bold text-slate-700">{selectedCustomerForReactivation.whatsapp}</span>
                                     </p>
                                 </div>
                             </div>
@@ -920,7 +1096,59 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                             </button>
                         </div>
 
-                        <form onSubmit={handleReactivationSubmit} className="space-y-4">
+                        <form onSubmit={handleReactivationSubmit} className="space-y-4 flex-1 overflow-y-auto pr-1">
+                            {/* Inserir Variáveis Dinâmicas */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                                    Tags Rápidas:
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        { label: '+ {cliente}', tag: '{cliente}' },
+                                        { label: '+ {saudacao}', tag: '{saudacao}' },
+                                        { label: '+ {loja}', tag: '{loja}' },
+                                        { label: '+ {catalogo_link}', tag: '{catalogo_link}' },
+                                        { label: '+ {cidade}', tag: '{cidade}' },
+                                        { label: '+ {Olá|Oi|Oie}', tag: '{Olá|Oi|Oie}' },
+                                    ].map((v, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => insertTagIntoForm(reactivationForm, 'message', v.tag)}
+                                            className="text-[11px] font-mono font-bold px-2 py-1 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 text-slate-700 rounded-lg border border-slate-200 transition"
+                                        >
+                                            {v.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Anexar Look do Catálogo */}
+                            {catalogProducts && catalogProducts.length > 0 && (
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+                                        Recomendar Novidade do Catálogo:
+                                    </label>
+                                    <select
+                                        onChange={(e) => {
+                                            const p = catalogProducts.find(x => x.id === parseInt(e.target.value));
+                                            if (p) insertLookIntoForm(reactivationForm, 'message', p);
+                                            e.target.value = '';
+                                        }}
+                                        className="w-full text-xs font-semibold bg-pink-50/50 border border-pink-200 rounded-xl px-3 py-2 text-pink-900 outline-none"
+                                        defaultValue=""
+                                    >
+                                        <option value="" disabled>Selecione um look para convidar o cliente...</option>
+                                        {catalogProducts.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                👗 {p.name} — {formatCurrency(p.price)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
                                     Mensagem de Reconquista (com Spintax) *
@@ -933,6 +1161,23 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                     className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none leading-relaxed"
                                 />
                             </div>
+
+                            {/* Preview Visual em Tempo Real */}
+                            {reactivationForm.data.message && (
+                                <div className="p-3.5 rounded-2xl bg-emerald-950/5 border border-emerald-200/60 space-y-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3 text-emerald-600" />
+                                        Pré-Visualização no WhatsApp:
+                                    </span>
+                                    <div className="bg-[#dcf8c6] text-slate-900 p-3 rounded-2xl rounded-tr-xs shadow-xs text-xs whitespace-pre-wrap leading-relaxed max-w-md font-sans">
+                                        {renderLivePreview(reactivationForm.data.message, selectedCustomerForReactivation, null)}
+                                        <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-emerald-800/60">
+                                            <span>{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            <Check className="w-3 h-3" />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                                 <button

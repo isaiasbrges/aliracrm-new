@@ -6,9 +6,12 @@ use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Deal;
 use App\Models\Message;
+use App\Models\Product;
+use App\Models\Store;
 use App\Services\EvolutionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -106,6 +109,14 @@ class DealController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'whatsapp']);
 
+        // Looks do Catálogo para inclusão dinâmica nos disparos
+        $catalogProducts = Product::query()
+            ->where('organization_id', $organizationId)
+            ->where('store_id', $storeId)
+            ->where('status', 'active')
+            ->orderBy('id', 'desc')
+            ->get(['id', 'name', 'price', 'original_price', 'image_url']);
+
         // ── Inteligência Anti-Ban & Saúde do Chip ──────────────────────
         $dispatchesToday = Message::query()
             ->where('organization_id', $organizationId)
@@ -131,6 +142,7 @@ class DealController extends Controller
             'columns',
             'totalPipelineValue',
             'customers',
+            'catalogProducts',
             'recencySegments',
             'chipHealth'
         ));
@@ -215,7 +227,6 @@ class DealController extends Controller
             abort(403);
         }
 
-        // Verificação de Limite Diário de Segurança
         $todayCount = Message::where('organization_id', $organizationId)->where('direction', 'outbound')->whereDate('created_at', today())->count();
         if ($todayCount >= 200) {
             return back()->withErrors(['message' => 'Limite diário de segurança atingido (200 disparos/dia) para proteger a saúde do seu chip WhatsApp. O limite reinicia à meia-noite.']);
@@ -227,61 +238,72 @@ class DealController extends Controller
         ]);
 
         $customer = $deal->customer;
-        if (!$customer || empty($customer->whatsapp)) {
-            return back()->withErrors(['message' => 'Esta oportunidade não possui cliente ou WhatsApp vinculado.']);
+        $cleanPhone = $customer ? preg_replace('/\D/', '', $customer->whatsapp ?? '') : '';
+
+        if (!$customer || empty($cleanPhone)) {
+            return back()->withErrors(['message' => 'Esta oportunidade não possui cliente ou WhatsApp válido vinculado.']);
         }
 
-        // Processar Spintax inteligente
-        $finalMessage = $this->parseSpintax($data['message']);
+        // Processar Mensagem Personalizada com Tags Dinâmicas e Spintax
+        $finalMessage = $this->personalizeMessage($data['message'], $deal, $store);
 
-        // Criar ou localizar conversa no CRM
-        $conversation = Conversation::firstOrCreate(
-            [
-                'organization_id'  => $organizationId,
-                'store_id'         => $storeId,
-                'external_chat_id' => $customer->whatsapp,
-            ],
-            [
-                'customer_id'          => $customer->id,
-                'channel'              => 'whatsapp',
-                'status'               => 'open',
-                'priority'             => 'normal',
-                'subject'              => 'Atendimento · ' . $deal->title,
+        try {
+            // Criar ou localizar conversa no CRM com consistência total
+            $conversation = Conversation::firstOrCreate(
+                [
+                    'organization_id'  => $organizationId,
+                    'store_id'         => $storeId,
+                    'channel'          => 'whatsapp',
+                    'external_chat_id' => $cleanPhone,
+                ],
+                [
+                    'customer_id'          => $customer->id,
+                    'status'               => 'open',
+                    'priority'             => 'normal',
+                    'subject'              => 'Atendimento · ' . $deal->title,
+                    'last_message_preview' => $finalMessage,
+                    'last_message_at'      => now(),
+                ]
+            );
+
+            // Gravar mensagem no histórico
+            Message::create([
+                'organization_id' => $organizationId,
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => 'text',
+                'body'            => $finalMessage,
+                'status'          => 'sent',
+                'from_phone'      => 'store',
+                'to_phone'        => $cleanPhone,
+                'sent_at'         => now(),
+            ]);
+
+            $conversation->update([
                 'last_message_preview' => $finalMessage,
                 'last_message_at'      => now(),
-            ]
-        );
+                'status'               => 'open',
+            ]);
 
-        // Gravar mensagem
-        Message::create([
-            'organization_id' => $organizationId,
-            'conversation_id' => $conversation->id,
-            'direction'       => 'outbound',
-            'type'            => 'text',
-            'body'            => $finalMessage,
-            'status'          => 'sent',
-            'from_phone'      => 'store',
-            'to_phone'        => $customer->whatsapp,
-            'sent_at'         => now(),
-        ]);
+            // Avançar estágio se solicitado
+            if (!empty($data['advance_stage'])) {
+                $deal->update(['stage' => $data['advance_stage']]);
+            }
 
-        $conversation->update([
-            'last_message_preview' => $finalMessage,
-            'last_message_at'      => now(),
-            'status'               => 'open',
-        ]);
+            // Disparo via Evolution API
+            $instanceName = $store->slug ?? 'dyvinus';
+            $sendResult = $this->evolutionService->sendMessage($instanceName, $cleanPhone, $finalMessage);
 
-        // Avançar estágio se solicitado
-        if (!empty($data['advance_stage'])) {
-            $deal->update(['stage' => $data['advance_stage']]);
+            if (!($sendResult['success'] ?? false)) {
+                Log::warning("Disparo registrado no CRM mas WhatsApp não entregou: " . ($sendResult['error'] ?? 'Instância desconectada'));
+            }
+
+            return redirect()->route('deals.index')
+                ->with('success', "WhatsApp disparado com sucesso para {$customer->name}!");
+        } catch (\Throwable $e) {
+            Log::error("Erro no disparo de WhatsApp: " . $e->getMessage());
+            return back()->withErrors(['message' => 'Erro ao processar disparo: ' . $e->getMessage()]);
         }
-
-        // Disparo real via Evolution API
-        $instanceName = $store->slug ?? 'dyvinus';
-        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $finalMessage);
-
-        return redirect()->route('deals.index')
-            ->with('success', "WhatsApp disparado com sucesso para {$customer->name}!");
     }
 
     /**
@@ -321,65 +343,59 @@ class DealController extends Controller
             }
 
             $customer = $deal->customer;
-            if (!$customer || empty($customer->whatsapp)) {
+            $cleanPhone = $customer ? preg_replace('/\D/', '', $customer->whatsapp ?? '') : '';
+
+            if (!$customer || empty($cleanPhone)) {
                 continue;
             }
 
-            $firstName = explode(' ', trim($customer->name))[0] ?: 'Cliente';
-            $formattedValue = 'R$ ' . number_format($deal->value, 2, ',', '.');
+            try {
+                $personalizedMessage = $this->personalizeMessage($data['message_template'], $deal, $store);
 
-            // 1. Substituir variáveis
-            $personalizedMessage = str_replace(
-                ['{cliente}', '{nome}', '{primeiro_nome}', '{valor}', '{titulo}', '{loja}'],
-                [$firstName, $firstName, $firstName, $formattedValue, $deal->title, $store->name],
-                $data['message_template']
-            );
+                $conversation = Conversation::firstOrCreate(
+                    [
+                        'organization_id'  => $organizationId,
+                        'store_id'         => $storeId,
+                        'channel'          => 'whatsapp',
+                        'external_chat_id' => $cleanPhone,
+                    ],
+                    [
+                        'customer_id'          => $customer->id,
+                        'status'               => 'open',
+                        'priority'             => 'normal',
+                        'subject'              => 'Disparo Funil · ' . $deal->title,
+                        'last_message_preview' => $personalizedMessage,
+                        'last_message_at'      => now(),
+                    ]
+                );
 
-            // 2. Processar Spintax (ex: {Olá|Oi|Oie} -> varia aleatoriamente para cada cliente)
-            $personalizedMessage = $this->parseSpintax($personalizedMessage);
+                Message::create([
+                    'organization_id' => $organizationId,
+                    'conversation_id' => $conversation->id,
+                    'direction'       => 'outbound',
+                    'type'            => 'text',
+                    'body'            => $personalizedMessage,
+                    'status'          => 'sent',
+                    'from_phone'      => 'store',
+                    'to_phone'        => $cleanPhone,
+                    'sent_at'         => now(),
+                ]);
 
-            // 3. Criar ou atualizar conversa
-            $conversation = Conversation::firstOrCreate(
-                [
-                    'organization_id'  => $organizationId,
-                    'store_id'         => $storeId,
-                    'external_chat_id' => $customer->whatsapp,
-                ],
-                [
-                    'customer_id'          => $customer->id,
-                    'channel'              => 'whatsapp',
-                    'status'               => 'open',
-                    'priority'             => 'normal',
-                    'subject'              => 'Disparo Funil · ' . $deal->title,
+                $conversation->update([
                     'last_message_preview' => $personalizedMessage,
                     'last_message_at'      => now(),
-                ]
-            );
+                    'status'               => 'open',
+                ]);
 
-            Message::create([
-                'organization_id' => $organizationId,
-                'conversation_id' => $conversation->id,
-                'direction'       => 'outbound',
-                'type'            => 'text',
-                'body'            => $personalizedMessage,
-                'status'          => 'sent',
-                'from_phone'      => 'store',
-                'to_phone'        => $customer->whatsapp,
-                'sent_at'         => now(),
-            ]);
+                if (!empty($data['advance_stage'])) {
+                    $deal->update(['stage' => $data['advance_stage']]);
+                }
 
-            $conversation->update([
-                'last_message_preview' => $personalizedMessage,
-                'last_message_at'      => now(),
-                'status'               => 'open',
-            ]);
-
-            if (!empty($data['advance_stage'])) {
-                $deal->update(['stage' => $data['advance_stage']]);
+                $this->evolutionService->sendMessage($instanceName, $cleanPhone, $personalizedMessage);
+                $sentCount++;
+            } catch (\Throwable $e) {
+                Log::error("Erro em disparo individual do lote: " . $e->getMessage());
             }
-
-            $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $personalizedMessage);
-            $sentCount++;
         }
 
         return redirect()->route('deals.index')
@@ -408,52 +424,136 @@ class DealController extends Controller
             'message' => ['required', 'string', 'max:5000'],
         ]);
 
-        if (empty($customer->whatsapp)) {
-            return back()->withErrors(['message' => 'Cliente sem WhatsApp cadastrado.']);
+        $cleanPhone = preg_replace('/\D/', '', $customer->whatsapp ?? '');
+        if (empty($cleanPhone)) {
+            return back()->withErrors(['message' => 'Cliente sem WhatsApp válido cadastrado.']);
         }
 
-        $finalMessage = $this->parseSpintax($data['message']);
+        try {
+            $finalMessage = $this->personalizeCustomerMessage($data['message'], $customer, $store);
 
-        $conversation = Conversation::firstOrCreate(
-            [
-                'organization_id'  => $organizationId,
-                'store_id'         => $storeId,
-                'external_chat_id' => $customer->whatsapp,
-            ],
-            [
-                'customer_id'          => $customer->id,
-                'channel'              => 'whatsapp',
-                'status'               => 'open',
-                'priority'             => 'normal',
-                'subject'              => 'Reativação · ' . $customer->name,
+            $conversation = Conversation::firstOrCreate(
+                [
+                    'organization_id'  => $organizationId,
+                    'store_id'         => $storeId,
+                    'channel'          => 'whatsapp',
+                    'external_chat_id' => $cleanPhone,
+                ],
+                [
+                    'customer_id'          => $customer->id,
+                    'status'               => 'open',
+                    'priority'             => 'normal',
+                    'subject'              => 'Reativação · ' . $customer->name,
+                    'last_message_preview' => $finalMessage,
+                    'last_message_at'      => now(),
+                ]
+            );
+
+            Message::create([
+                'organization_id' => $organizationId,
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => 'text',
+                'body'            => $finalMessage,
+                'status'          => 'sent',
+                'from_phone'      => 'store',
+                'to_phone'        => $cleanPhone,
+                'sent_at'         => now(),
+            ]);
+
+            $conversation->update([
                 'last_message_preview' => $finalMessage,
                 'last_message_at'      => now(),
-            ]
-        );
+                'status'               => 'open',
+            ]);
 
-        Message::create([
-            'organization_id' => $organizationId,
-            'conversation_id' => $conversation->id,
-            'direction'       => 'outbound',
-            'type'            => 'text',
-            'body'            => $finalMessage,
-            'status'          => 'sent',
-            'from_phone'      => 'store',
-            'to_phone'        => $customer->whatsapp,
-            'sent_at'         => now(),
-        ]);
+            $instanceName = $store->slug ?? 'dyvinus';
+            $this->evolutionService->sendMessage($instanceName, $cleanPhone, $finalMessage);
 
-        $conversation->update([
-            'last_message_preview' => $finalMessage,
-            'last_message_at'      => now(),
-            'status'               => 'open',
-        ]);
+            return redirect()->route('deals.index')
+                ->with('success', "Mensagem de reativação enviada para {$customer->name}!");
+        } catch (\Throwable $e) {
+            Log::error("Erro na reativação de cliente: " . $e->getMessage());
+            return back()->withErrors(['message' => 'Erro ao disparar: ' . $e->getMessage()]);
+        }
+    }
 
-        $instanceName = $store->slug ?? 'dyvinus';
-        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $finalMessage);
+    /**
+     * Personalização Completa de Mensagem com Tags Dinâmicas e Spintax
+     */
+    protected function personalizeMessage(string $template, Deal $deal, Store $store): string
+    {
+        $customer = $deal->customer;
+        $firstName = $customer ? explode(' ', trim($customer->name))[0] : 'Cliente';
+        $fullName = $customer ? $customer->name : 'Cliente';
+        $formattedValue = 'R$ ' . number_format($deal->value, 2, ',', '.');
+        $city = $customer?->city ?: 'sua região';
 
-        return redirect()->route('deals.index')
-            ->with('success', "Mensagem de reativação enviada para {$customer->name}!");
+        // Saudação dinâmica conforme a hora do dia
+        $hour = (int) now()->format('H');
+        $saudacao = match (true) {
+            $hour >= 5 && $hour < 12 => 'Bom dia',
+            $hour >= 12 && $hour < 18 => 'Boa tarde',
+            default => 'Boa noite',
+        };
+
+        // Link do Catálogo
+        $catalogLink = $store->custom_domain
+            ? "https://{$store->custom_domain}"
+            : (url('/catalogo') ?: 'https://aliracrm.site/catalogo');
+
+        $replacements = [
+            '{cliente}'        => $firstName,
+            '{nome}'           => $firstName,
+            '{primeiro_nome}'  => $firstName,
+            '{nome_completo}'  => $fullName,
+            '{saudacao}'       => $saudacao,
+            '{valor}'          => $formattedValue,
+            '{titulo}'         => $deal->title,
+            '{loja}'           => $store->name,
+            '{catalogo_link}'  => $catalogLink,
+            '{cidade}'         => $city,
+        ];
+
+        $processed = str_replace(array_keys($replacements), array_values($replacements), $template);
+
+        return $this->parseSpintax($processed);
+    }
+
+    /**
+     * Personalização para Reativação Direta de Clientes
+     */
+    protected function personalizeCustomerMessage(string $template, Customer $customer, Store $store): string
+    {
+        $firstName = explode(' ', trim($customer->name))[0] ?: 'Cliente';
+        $fullName = $customer->name;
+        $city = $customer->city ?: 'sua região';
+
+        $hour = (int) now()->format('H');
+        $saudacao = match (true) {
+            $hour >= 5 && $hour < 12 => 'Bom dia',
+            $hour >= 12 && $hour < 18 => 'Boa tarde',
+            default => 'Boa noite',
+        };
+
+        $catalogLink = $store->custom_domain
+            ? "https://{$store->custom_domain}"
+            : (url('/catalogo') ?: 'https://aliracrm.site/catalogo');
+
+        $replacements = [
+            '{cliente}'        => $firstName,
+            '{nome}'           => $firstName,
+            '{primeiro_nome}'  => $firstName,
+            '{nome_completo}'  => $fullName,
+            '{saudacao}'       => $saudacao,
+            '{loja}'           => $store->name,
+            '{catalogo_link}'  => $catalogLink,
+            '{cidade}'         => $city,
+        ];
+
+        $processed = str_replace(array_keys($replacements), array_values($replacements), $template);
+
+        return $this->parseSpintax($processed);
     }
 
     /**
@@ -464,7 +564,6 @@ class DealController extends Controller
         return (string) preg_replace_callback('/\{([^{}]+)\}/', function ($matches) {
             $options = explode('|', $matches[1]);
             if (count($options) <= 1) {
-                // Se for tag normal sem pipe, mantém como está
                 return $matches[0];
             }
             return $options[array_rand($options)];
