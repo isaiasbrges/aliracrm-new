@@ -13,8 +13,17 @@ class EvolutionService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim((string) (config('services.evolution.url') ?: env('EVOLUTION_API_URL') ?: 'https://evolution.aliracrm.site'), '/');
-        $this->globalApiKey = (string) (config('services.evolution.key') ?: env('EVOLUTION_API_KEY') ?: 'B6D711FCDE4D4FD59365441E08497C40');
+        $url = (string) (config('services.evolution.url') ?: env('EVOLUTION_API_URL'));
+        if (empty($url) || str_contains($url, 'seudominio.com')) {
+            $url = 'https://evolution.aliracrm.site';
+        }
+        $this->baseUrl = rtrim($url, '/');
+
+        $key = (string) (config('services.evolution.key') ?: env('EVOLUTION_API_KEY'));
+        if (empty($key)) {
+            $key = 'B6D711FCDE4D4FD59365441E08497C40';
+        }
+        $this->globalApiKey = $key;
     }
 
     /**
@@ -53,7 +62,7 @@ class EvolutionService
 
         try {
             $url = "{$this->baseUrl}/message/sendText/{$instanceName}";
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->globalApiKey,
                 'Content-Type' => 'application/json',
             ])->timeout(15)->post($url, [
@@ -65,7 +74,7 @@ class EvolutionService
             if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
                 $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
                 $altUrl = "{$this->baseUrl}/message/sendText/{$altInstance}";
-                $altResponse = Http::withHeaders([
+                $altResponse = Http::withoutVerifying()->withHeaders([
                     'apikey' => $this->globalApiKey,
                     'Content-Type' => 'application/json',
                 ])->timeout(15)->post($altUrl, [
@@ -118,7 +127,7 @@ class EvolutionService
                 'values' => $options,
             ];
 
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->globalApiKey,
                 'Content-Type' => 'application/json',
             ])->timeout(15)->post($url, $payload);
@@ -126,7 +135,7 @@ class EvolutionService
             if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
                 $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
                 $altUrl = "{$this->baseUrl}/message/sendPoll/{$altInstance}";
-                $response = Http::withHeaders([
+                $response = Http::withoutVerifying()->withHeaders([
                     'apikey' => $this->globalApiKey,
                     'Content-Type' => 'application/json',
                 ])->timeout(15)->post($altUrl, $payload);
@@ -167,7 +176,7 @@ class EvolutionService
                 'values' => $rows,
             ];
 
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->globalApiKey,
                 'Content-Type' => 'application/json',
             ])->timeout(15)->post($url, $payload);
@@ -175,7 +184,7 @@ class EvolutionService
             if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
                 $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
                 $altUrl = "{$this->baseUrl}/message/sendList/{$altInstance}";
-                $response = Http::withHeaders([
+                $response = Http::withoutVerifying()->withHeaders([
                     'apikey' => $this->globalApiKey,
                     'Content-Type' => 'application/json',
                 ])->timeout(15)->post($altUrl, $payload);
@@ -202,7 +211,7 @@ class EvolutionService
 
         try {
             $url = "{$this->baseUrl}/instance/connectionState/{$instanceName}";
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->globalApiKey,
             ])->timeout(8)->get($url);
 
@@ -211,9 +220,29 @@ class EvolutionService
                 $state = data_get($data, 'instance.state') ?? data_get($data, 'state', 'close');
                 return [
                     'state' => $state,
-                    'connected' => $state === 'open',
+                    'connected' => in_array($state, ['open', 'connected'], true),
                     'raw' => $data,
                 ];
+            }
+
+            // Tenta instância alternativa se falhar
+            if (in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
+                $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
+                $altUrl = "{$this->baseUrl}/instance/connectionState/{$altInstance}";
+                $altResponse = Http::withoutVerifying()->withHeaders([
+                    'apikey' => $this->globalApiKey,
+                ])->timeout(8)->get($altUrl);
+
+                if ($altResponse->successful()) {
+                    $altData = $altResponse->json();
+                    $altState = data_get($altData, 'instance.state') ?? data_get($altData, 'state', 'close');
+                    return [
+                        'state' => $altState,
+                        'connected' => in_array($altState, ['open', 'connected'], true),
+                        'instance' => $altInstance,
+                        'raw' => $altData,
+                    ];
+                }
             }
 
             return ['state' => 'not_found', 'connected' => false];
@@ -233,7 +262,7 @@ class EvolutionService
 
         try {
             $url = "{$this->baseUrl}/instance/connect/{$instanceName}";
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'apikey' => $this->globalApiKey,
             ])->timeout(10)->get($url);
 

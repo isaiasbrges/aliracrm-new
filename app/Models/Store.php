@@ -11,11 +11,24 @@ class Store extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['organization_id', 'name', 'slug', 'active', 'accent_color', 'logo_url'];
+    protected $fillable = [
+        'organization_id',
+        'name',
+        'slug',
+        'active',
+        'accent_color',
+        'logo_url',
+        'external_pos_webhook_enabled',
+        'external_pos_webhook_url',
+        'external_pos_webhook_secret',
+    ];
 
     protected function casts(): array
     {
-        return ['active' => 'boolean'];
+        return [
+            'active' => 'boolean',
+            'external_pos_webhook_enabled' => 'boolean',
+        ];
     }
 
     public function organization(): BelongsTo

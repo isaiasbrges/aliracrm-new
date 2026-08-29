@@ -137,6 +137,7 @@ export default function AppLayout({ title, children }) {
         { name: 'Clientes',         href: '/clientes',          icon: Users },
         { name: 'Vendas & PDV',     href: '/vendas',            icon: ShoppingBag },
         { name: 'Produtos',         href: '/produtos',          icon: Package },
+        { name: 'Configurações',    href: '/configuracoes/loja', icon: Settings },
     ];
 
     const isActive = (item) =>

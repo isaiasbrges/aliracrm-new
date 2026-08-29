@@ -13,7 +13,6 @@ import {
     Sparkles,
     Plus,
     Building2,
-    ArrowRightLeft,
     Check,
     X,
     Copy,
@@ -27,32 +26,32 @@ import {
     Cpu,
     Workflow,
     HelpCircle,
+    Zap,
+    Send,
+    AlertCircle,
 } from 'lucide-react';
 
-/* ── Paleta de cores sugeridas ── */
+/* ── Paleta de cores sugeridas para lojas de moda e boutiques ── */
 const PRESET_COLORS = [
-    { label: 'Azul Royal',    value: '#2563eb' },
-    { label: 'Anil',          value: '#4f46e5' },
-    { label: 'Violeta',       value: '#7c3aed' },
-    { label: 'Rosa Fúcsia',   value: '#db2777' },
-    { label: 'Vermelho',      value: '#dc2626' },
-    { label: 'Laranja',       value: '#ea580c' },
-    { label: 'Âmbar',         value: '#d97706' },
-    { label: 'Esmeralda',     value: '#059669' },
-    { label: 'Ciano',         value: '#0891b2' },
-    { label: 'Slate',         value: '#475569' },
-    { label: 'Rosa Quente',   value: '#e11d48' },
-    { label: 'Lima',          value: '#65a30d' },
+    { label: 'Hot Pink (Referência)', value: '#ff007f' },
+    { label: 'Rosa Dyvinuss',         value: '#db2777' },
+    { label: 'Rosa Pink Fúcsia',      value: '#ec4899' },
+    { label: 'Rosa Quente',           value: '#f43f5e' },
+    { label: 'Violeta / Roxo',        value: '#7c3aed' },
+    { label: 'Preto & Ouro Luxo',     value: '#0f172a' },
+    { label: 'Vermelho Paixão',       value: '#dc2626' },
+    { label: 'Esmeralda',             value: '#059669' },
+    { label: 'Azul Royal',            value: '#2563eb' },
 ];
 
-/* ── Preview da sidebar com a cor escolhida ── */
+/* ── Preview da barra lateral e vitrine com a cor escolhida ── */
 function SidebarPreview({ color, logoUrl, logoPreview, storeName }) {
-    const bg = color || '#2563eb';
+    const bg = color || '#ff007f';
 
     return (
-        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-lg select-none" style={{ width: 180 }}>
-            <div className="flex flex-col" style={{ background: '#09132b', minHeight: 280 }}>
-                {/* Brand */}
+        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-md select-none w-full max-w-[200px]">
+            <div className="flex flex-col bg-slate-900 text-white" style={{ minHeight: 240 }}>
+                {/* Brand Header */}
                 <div className="flex items-center gap-2 px-3 py-3 border-b border-white/10">
                     {logoPreview || logoUrl ? (
                         <img
@@ -62,874 +61,446 @@ function SidebarPreview({ color, logoUrl, logoPreview, storeName }) {
                         />
                     ) : (
                         <div
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white shadow"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-xs"
                             style={{ background: bg }}
                         >
-                            <Sparkles className="w-4 h-4" />
+                            DY
                         </div>
                     )}
-                    <span className="text-white font-bold text-xs truncate">{storeName || 'Minha Loja'}</span>
+                    <span className="text-white font-bold text-xs truncate">{storeName || 'Dyvinuss Looks'}</span>
                 </div>
 
                 {/* Nav items mock */}
                 <div className="flex-1 px-2 py-2 space-y-1">
-                    {['Dashboard', 'Funil', 'WhatsApp', 'Clientes'].map((item, i) => (
+                    {['Dashboard', 'Catálogo Online', 'WhatsApp', 'Vendas & PDV'].map((item, i) => (
                         <div
                             key={item}
-                            className="rounded-lg px-2 py-1.5 text-[11px] font-semibold flex items-center gap-2"
+                            className="rounded-lg px-2 py-1 text-[10px] font-semibold flex items-center gap-1.5"
                             style={
-                                i === 0
+                                i === 1
                                     ? { background: bg, color: '#fff' }
                                     : { color: '#94a3b8' }
                             }
                         >
-                            <div className="w-2 h-2 rounded-full" style={i === 0 ? { background: '#fff' } : { background: '#475569' }} />
-                            {item}
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: i === 1 ? '#fff' : '#64748b' }} />
+                            <span className="truncate">{item}</span>
                         </div>
                     ))}
                 </div>
 
-                {/* CTA mock */}
-                <div className="p-2 mx-2 mb-2 rounded-xl border border-white/10 text-center">
-                    <div
-                        className="text-white text-[10px] font-bold rounded-lg py-1.5 mt-1"
-                        style={{ background: bg }}
-                    >
-                        + Nova Venda
-                    </div>
+                {/* Footer preview */}
+                <div className="px-3 py-2 border-t border-white/10">
+                    <span className="text-[9px] text-slate-400">Identidade Visual Ativa</span>
                 </div>
             </div>
         </div>
     );
 }
 
-export default function StoreSettings({ store, organization, stores = [], evolution = {} }) {
-    const [activeTab, setActiveTab] = useState('stores'); // 'stores' | 'identity' | 'whatsapp'
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [logoPreview, setLogoPreview] = useState(null);
-    const [removeLogo, setRemoveLogo] = useState(false);
-    const [copiedKey, setCopiedKey] = useState(null);
-    const fileRef = useRef(null);
+export default function StoreSettings({ store, organization, stores, evolution, flash }) {
+    const fileInputRef = useRef(null);
+    const [logoPreview, setLogoPreview] = useState(store?.logo_url || null);
+    const [testingWebhook, setTestingWebhook] = useState(false);
+    const [webhookTestResult, setWebhookTestResult] = useState(null);
 
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aliracrm.site';
-
-    // Form para atualizar loja atual
-    const { data, setData, post, processing, errors, reset } = useForm({
-        name: store.name || '',
-        accent_color: store.accent_color || '#2563eb',
-        logo: null,
-        remove_logo: false,
+    const { data, setData, post, processing, errors, reset, isDirty } = useForm({
+        name:                         store?.name || '',
+        accent_color:                 store?.accent_color || '#ff007f',
+        logo:                         null,
+        logo_url:                     store?.logo_url || '',
+        remove_logo:                  false,
+        external_pos_webhook_enabled: store?.external_pos_webhook_enabled || false,
+        external_pos_webhook_url:     store?.external_pos_webhook_url || '',
+        external_pos_webhook_secret:  store?.external_pos_webhook_secret || '',
     });
 
-    // Form para criar nova loja
-    const newStoreForm = useForm({
-        name: '',
-        accent_color: '#db2777',
-        logo: null,
-    });
-
-    const handleCopy = (text, key) => {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text);
-            setCopiedKey(key);
-            setTimeout(() => setCopiedKey(null), 3000);
-        }
+    const handleColorChange = (color) => {
+        setData('accent_color', color);
     };
 
-    const handleFile = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setData('logo', file);
-        setRemoveLogo(false);
-        setData('remove_logo', false);
-        const reader = new FileReader();
-        reader.onload = (ev) => setLogoPreview(ev.target.result);
-        reader.readAsDataURL(file);
+    const handleFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setData('logo', file);
+            setData('remove_logo', false);
+            setLogoPreview(URL.createObjectURL(file));
+        }
     };
 
     const handleRemoveLogo = () => {
         setData('logo', null);
+        setData('logo_url', '');
         setData('remove_logo', true);
-        setRemoveLogo(true);
         setLogoPreview(null);
-        if (fileRef.current) fileRef.current.value = '';
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
         post('/configuracoes/loja', {
+            preserveScroll: true,
             forceFormData: true,
         });
     };
 
-    const handleCreateStore = (e) => {
-        e.preventDefault();
-        newStoreForm.post('/lojas/nova', {
-            forceFormData: true,
-            onSuccess: () => {
-                setIsCreateModalOpen(false);
-                newStoreForm.reset();
-            },
-        });
-    };
+    const handleTestWebhook = async () => {
+        if (!data.external_pos_webhook_url) {
+            alert('Por favor, informe a URL do webhook do seu PDV externo primeiro.');
+            return;
+        }
 
-    const handleSwitchStore = (storeId) => {
-        router.post(`/lojas/${storeId}/alternar`);
-    };
+        setTestingWebhook(true);
+        setWebhookTestResult(null);
 
-    const currentLogo = removeLogo ? null : (logoPreview || store.logo_url);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const res = await fetch('/configuracoes/loja/test-webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken || '',
+                },
+                body: JSON.stringify({
+                    url: data.external_pos_webhook_url,
+                    secret: data.external_pos_webhook_secret,
+                }),
+            });
+
+            const json = await res.json();
+            setWebhookTestResult(json);
+        } catch (err) {
+            setWebhookTestResult({
+                success: false,
+                message: 'Erro ao tentar disparar o teste: ' + err.message,
+            });
+        } finally {
+            setTestingWebhook(false);
+        }
+    };
 
     return (
-        <AppLayout title="Configurações e Gestão de Lojas">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                <div>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
-                        <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Organização: <b className="text-slate-800">{organization?.name || 'Alira CRM'}</b></span>
-                    </div>
-                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-slate-900 tracking-tight flex items-center gap-2">
-                        Administração & Multi-Lojas
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                        Gerencie filiais, links de acesso individuais, WhatsApp Evolution API e N8N.
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition active:scale-95 shrink-0"
-                    >
-                        <Plus className="w-4 h-4" />
-                        + Criar Nova Loja / Filial
-                    </button>
-                </div>
-            </div>
-
-            {/* Master Multi-Store Banner */}
-            <div className="mb-6 p-4.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white border border-slate-700 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold shrink-0">
-                        <Globe className="w-5 h-5" />
-                    </div>
+        <AppLayout title="Configurações da Loja & PDV">
+            <div className="max-w-6xl mx-auto space-y-6">
+                {/* ── Header da Página ── */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <span className="text-[10px] uppercase tracking-wider font-extrabold text-blue-400 block">
-                            Link Master · Painel Administrador Geral Multi-Store
-                        </span>
-                        <p className="text-xs text-slate-300 font-mono mt-0.5 select-all">
-                            {baseUrl}/admin
+                        <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-slate-900 tracking-tight flex items-center gap-2">
+                            Configurações da Loja
+                            <span className="p-1 rounded-md bg-pink-100 text-pink-700 text-xs font-sans font-bold flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5" />
+                                Personalização & Webhooks
+                            </span>
+                        </h1>
+                        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+                            Gerencie o logo da loja, cores da marca e integre com seu PDV externo via Webhook.
                         </p>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                    <button
-                        onClick={() => handleCopy(`${baseUrl}/admin`, 'master')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/10 transition active:scale-95"
+                    <a
+                        href="/catalogo"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs w-fit"
                     >
-                        {copiedKey === 'master' ? (
-                            <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-emerald-400">Copiado!</span>
-                            </>
-                        ) : (
-                            <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Copiar Link Master</span>
-                            </>
-                        )}
-                    </button>
+                        <Globe className="w-4 h-4 text-emerald-400" />
+                        <span>Ver Catálogo da Loja</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400" />
+                    </a>
                 </div>
-            </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-200 mb-6 overflow-x-auto">
-                <button
-                    onClick={() => setActiveTab('stores')}
-                    className={`pb-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
-                        activeTab === 'stores'
-                            ? 'border-blue-600 text-blue-600'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <Store className="w-4 h-4" />
-                    Lojas & Links da Rede ({stores.length})
-                </button>
-                <button
-                    onClick={() => setActiveTab('identity')}
-                    className={`pb-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
-                        activeTab === 'identity'
-                            ? 'border-blue-600 text-blue-600'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <Palette className="w-4 h-4" />
-                    Identidade da Loja ({store.name})
-                </button>
-                <button
-                    onClick={() => setActiveTab('whatsapp')}
-                    className={`pb-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 shrink-0 ${
-                        activeTab === 'whatsapp'
-                            ? 'border-emerald-600 text-emerald-600'
-                            : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <MessageSquare className="w-4 h-4 text-emerald-600" />
-                    WhatsApp Evolution API & N8N ({store.name})
-                </button>
-            </div>
-
-            {/* ──────────────── TAB 1: LISTA DE LOJAS & LINKS ──────────────── */}
-            {activeTab === 'stores' && (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {stores.map((s) => {
-                            const isCurrent = s.is_current;
-                            const directUrl = `${baseUrl}/loja/${s.slug}`;
-                            const loginUrl = `${baseUrl}/loja/${s.slug}/login`;
-
-                            return (
-                                <div
-                                    key={s.id}
-                                    className={`bg-white rounded-3xl p-5 border transition-all relative flex flex-col justify-between ${
-                                        isCurrent
-                                            ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md'
-                                            : 'border-slate-200/80 hover:border-slate-300 shadow-2xs'
-                                    }`}
-                                >
-                                    <div>
-                                        {/* Store Header */}
-                                        <div className="flex items-start justify-between gap-3 mb-3">
-                                            <div className="flex items-center gap-3">
-                                                {s.logo_url ? (
-                                                    <img
-                                                        src={s.logo_url}
-                                                        alt={s.name}
-                                                        className="w-12 h-12 rounded-2xl object-contain bg-slate-50 p-1 border border-slate-100 shrink-0"
-                                                    />
-                                                ) : (
-                                                    <div
-                                                        className="w-12 h-12 rounded-2xl text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0"
-                                                        style={{ background: s.accent_color || '#2563eb' }}
-                                                    >
-                                                        <Store className="w-6 h-6" />
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                                        {s.name}
-                                                    </h3>
-                                                    <span className="text-[11px] font-mono text-slate-400">
-                                                        /loja/{s.slug}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {isCurrent ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                    <Check className="w-3 h-3" /> Ativa Agora
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
-                                                    Filial
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Links Box */}
-                                        <div className="my-3 p-3 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-2 text-xs">
-                                            {/* Link Direto */}
-                                            <div>
-                                                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-0.5">
-                                                    <span className="font-semibold flex items-center gap-1">
-                                                        <Link2 className="w-3 h-3 text-blue-600" /> Link de Acesso Direto:
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleCopy(directUrl, `direct-${s.id}`)}
-                                                        className="text-blue-600 hover:text-blue-800 font-semibold"
-                                                    >
-                                                        {copiedKey === `direct-${s.id}` ? 'Copiado!' : 'Copiar'}
-                                                    </button>
-                                                </div>
-                                                <div className="font-mono text-[11px] text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200/60 truncate flex items-center justify-between">
-                                                    <span className="truncate">{directUrl}</span>
-                                                    <a
-                                                        href={directUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-slate-400 hover:text-blue-600 ml-1.5 shrink-0"
-                                                        title="Abrir em nova aba"
-                                                    >
-                                                        <ExternalLink className="w-3 h-3" />
-                                                    </a>
-                                                </div>
-                                            </div>
-
-                                            {/* Link Login Exclusivo */}
-                                            <div>
-                                                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-0.5">
-                                                    <span className="font-semibold flex items-center gap-1">
-                                                        <Lock className="w-3 h-3 text-indigo-600" /> Link de Login da Loja:
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleCopy(loginUrl, `login-${s.id}`)}
-                                                        className="text-indigo-600 hover:text-indigo-800 font-semibold"
-                                                    >
-                                                        {copiedKey === `login-${s.id}` ? 'Copiado!' : 'Copiar'}
-                                                    </button>
-                                                </div>
-                                                <div className="font-mono text-[11px] text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200/60 truncate flex items-center justify-between">
-                                                    <span className="truncate">{loginUrl}</span>
-                                                    <a
-                                                        href={loginUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-slate-400 hover:text-indigo-600 ml-1.5 shrink-0"
-                                                        title="Abrir em nova aba"
-                                                    >
-                                                        <ExternalLink className="w-3 h-3" />
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Store Metrics */}
-                                        <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-slate-100 text-center my-2">
-                                            <div>
-                                                <span className="text-[10px] text-slate-400 font-semibold block">VENDAS</span>
-                                                <span className="text-xs font-bold text-slate-800 font-['Space_Grotesk']">
-                                                    {s.sales_count || 0}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-[10px] text-slate-400 font-semibold block">PRODUTOS</span>
-                                                <span className="text-xs font-bold text-slate-800 font-['Space_Grotesk']">
-                                                    {s.products_count || 0}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-[10px] text-slate-400 font-semibold block">CLIENTES</span>
-                                                <span className="text-xs font-bold text-slate-800 font-['Space_Grotesk']">
-                                                    {s.customers_count || 0}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Action buttons */}
-                                    <div className="pt-2 flex items-center justify-between gap-2">
-                                        {isCurrent ? (
-                                            <button
-                                                onClick={() => setActiveTab('identity')}
-                                                className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
-                                            >
-                                                Editar Identidade & Logo
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={() => handleSwitchStore(s.id)}
-                                                className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition active:scale-95"
-                                            >
-                                                <ArrowRightLeft className="w-3.5 h-3.5" />
-                                                Alternar para esta Loja
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {/* ──────────────── TAB 2: IDENTIDADE VISUAL ──────────────── */}
-            {activeTab === 'identity' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* ── Form ── */}
-                    <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-6">
-                        {/* Nome da Loja */}
-                        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
-                            <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                Nome da Loja Ativa *
-                            </label>
-                            <input
-                                type="text"
-                                value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
-                                placeholder="Ex: Dyvinus Boutique"
-                                required
-                                className="w-full text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                            />
-                            {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name}</p>}
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* ── CARD 1: IDENTIDADE VISUAL (LOGO & CORES) ── */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm">
+                        <div className="flex items-center gap-2.5 pb-4 mb-6 border-b border-slate-100">
+                            <div className="w-9 h-9 rounded-xl bg-pink-50 text-[#ff007f] flex items-center justify-center font-bold">
+                                <Palette className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-slate-900 text-base">Identidade Visual da Loja</h2>
+                                <p className="text-xs text-slate-500">Logo e paleta de cores aplicadas no sistema e no catálogo público.</p>
+                            </div>
                         </div>
 
-                        {/* Logo Upload Card */}
-                        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="p-2 bg-slate-100 rounded-xl">
-                                    <Store className="w-5 h-5 text-slate-600" />
-                                </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* Formulário de Logo & Cores */}
+                            <div className="lg:col-span-8 space-y-6">
+                                {/* Nome da Loja */}
                                 <div>
-                                    <h2 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">Logo da Loja</h2>
-                                    <p className="text-xs text-slate-500">PNG, JPG, SVG ou WebP — máx. 2 MB</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-5">
-                                <div className="shrink-0">
-                                    <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden relative">
-                                        {currentLogo ? (
-                                            <img
-                                                src={currentLogo}
-                                                alt="Logo atual"
-                                                className="w-full h-full object-contain p-2"
-                                            />
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-1 text-slate-400">
-                                                <ImageOff className="w-8 h-8" />
-                                                <span className="text-[10px] font-medium">Sem logo</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex-1 space-y-3">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                                        Nome da Loja *
+                                    </label>
                                     <input
-                                        ref={fileRef}
-                                        type="file"
-                                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                                        onChange={handleFile}
-                                        className="hidden"
-                                        id="logo-upload"
+                                        type="text"
+                                        value={data.name}
+                                        onChange={(e) => setData('name', e.target.value)}
+                                        className="w-full text-xs sm:text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
+                                        placeholder="Ex: Dyvinuss Looks"
+                                        required
                                     />
-                                    <label
-                                        htmlFor="logo-upload"
-                                        className="inline-flex cursor-pointer items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-semibold text-slate-700 transition"
-                                    >
-                                        <Upload className="w-4 h-4" />
-                                        Escolher arquivo
+                                    {errors.name && <p className="text-xs text-rose-600 mt-1">{errors.name}</p>}
+                                </div>
+
+                                {/* Logo da Loja */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                                        Logo da Loja
                                     </label>
 
-                                    {currentLogo && (
-                                        <button
-                                            type="button"
-                                            onClick={handleRemoveLogo}
-                                            className="ml-2 inline-flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-700 font-semibold transition"
-                                        >
-                                            <ImageOff className="w-3.5 h-3.5" />
-                                            Remover logo
-                                        </button>
-                                    )}
+                                    <div className="flex items-start gap-4">
+                                        {logoPreview ? (
+                                            <div className="w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-white p-1 shrink-0 shadow-xs relative group">
+                                                <img
+                                                    src={logoPreview}
+                                                    alt="Logo Preview"
+                                                    className="w-full h-full object-contain"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveLogo}
+                                                    className="absolute inset-0 bg-slate-900/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition text-[10px] font-bold"
+                                                >
+                                                    Remover
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-20 h-20 rounded-2xl border-2 border-dashed border-slate-300 hover:border-slate-400 flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer transition shrink-0 bg-slate-50"
+                                            >
+                                                <Upload className="w-5 h-5 mb-1" />
+                                                <span className="text-[9px] font-bold">Upload</span>
+                                            </div>
+                                        )}
 
-                                    {data.logo && (
-                                        <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                            {data.logo.name}
-                                        </p>
-                                    )}
-                                    {errors.logo && (
-                                        <p className="text-xs text-rose-500">{errors.logo}</p>
-                                    )}
+                                        <div className="flex-1 space-y-2">
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                onChange={handleFileChange}
+                                                accept="image/*"
+                                                className="hidden"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                                            >
+                                                Escolher Imagem do Computador
+                                            </button>
+                                            <input
+                                                type="url"
+                                                value={data.logo_url}
+                                                onChange={(e) => {
+                                                    setData('logo_url', e.target.value);
+                                                    setLogoPreview(e.target.value);
+                                                }}
+                                                placeholder="Ou cole a URL da imagem da Logo..."
+                                                className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                                            />
+                                            {errors.logo && <p className="text-xs text-rose-600 mt-1">{errors.logo}</p>}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Color Card */}
-                        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="p-2 bg-slate-100 rounded-xl">
-                                    <Palette className="w-5 h-5 text-slate-600" />
-                                </div>
+                                {/* Cor de Destaque da Loja */}
                                 <div>
-                                    <h2 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">Cor Principal</h2>
-                                    <p className="text-xs text-slate-500">Define a cor dos botões, links ativos e elementos de destaque</p>
-                                </div>
-                            </div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                                        Cor de Destaque da Marca (Navbar, Botões e Destaques) *
+                                    </label>
 
-                            <div className="grid grid-cols-6 sm:grid-cols-12 gap-2 mb-5">
-                                {PRESET_COLORS.map((preset) => (
-                                    <button
-                                        key={preset.value}
-                                        type="button"
-                                        title={preset.label}
-                                        onClick={() => setData('accent_color', preset.value)}
-                                        className={`w-9 h-9 rounded-xl border-2 transition-all hover:scale-110 active:scale-95 shadow-sm ${
-                                            data.accent_color === preset.value
-                                                ? 'border-white ring-2 ring-offset-2 scale-110'
-                                                : 'border-transparent'
-                                        }`}
-                                        style={{
-                                            background: preset.value,
-                                            ringColor: preset.value,
-                                        }}
-                                    />
-                                ))}
-                            </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-3">
+                                        {PRESET_COLORS.map((preset) => (
+                                            <button
+                                                key={preset.value}
+                                                type="button"
+                                                onClick={() => handleColorChange(preset.value)}
+                                                className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition ${
+                                                    data.accent_color.toLowerCase() === preset.value.toLowerCase()
+                                                        ? 'border-slate-900 bg-slate-50 ring-2 ring-slate-900/10'
+                                                        : 'border-slate-200 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <span
+                                                    className="w-4 h-4 rounded-full shadow-xs shrink-0"
+                                                    style={{ backgroundColor: preset.value }}
+                                                />
+                                                <span className="truncate">{preset.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
 
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 flex-1 max-w-xs">
-                                    <div className="relative">
+                                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
                                         <input
                                             type="color"
                                             value={data.accent_color}
-                                            onChange={(e) => setData('accent_color', e.target.value)}
-                                            className="w-12 h-12 rounded-xl border border-slate-200 cursor-pointer p-1 bg-white"
-                                            title="Cor personalizada"
+                                            onChange={(e) => handleColorChange(e.target.value)}
+                                            className="w-9 h-9 rounded-xl cursor-pointer border-none p-0 bg-transparent"
                                         />
+                                        <div className="flex-1">
+                                            <p className="text-[11px] font-bold text-slate-700">Seletor de Cor Hexadecimal Livre:</p>
+                                            <input
+                                                type="text"
+                                                value={data.accent_color}
+                                                onChange={(e) => handleColorChange(e.target.value)}
+                                                className="font-mono text-xs font-bold uppercase text-slate-900 bg-transparent outline-none mt-0.5"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <label className="block text-[10px] font-semibold text-slate-500 mb-1 uppercase tracking-wider">
-                                            Hex
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={data.accent_color}
-                                            onChange={(e) => {
-                                                const v = e.target.value;
-                                                if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setData('accent_color', v);
-                                            }}
-                                            className="w-full px-3 py-2 text-sm font-mono border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                                            placeholder="#2563eb"
-                                        />
-                                        {errors.accent_color && (
-                                            <p className="text-xs text-rose-500 mt-1">{errors.accent_color}</p>
-                                        )}
-                                    </div>
+                                    {errors.accent_color && <p className="text-xs text-rose-600 mt-1">{errors.accent_color}</p>}
                                 </div>
+                            </div>
 
-                                <div
-                                    className="w-12 h-12 rounded-xl shadow-md border border-white/20"
-                                    style={{ background: data.accent_color }}
-                                    title="Prévia da cor"
+                            {/* Mini Preview em Tempo Real */}
+                            <div className="lg:col-span-4 flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                                <span className="text-xs font-bold text-slate-600 mb-3 uppercase tracking-wider">
+                                    Preview da Identidade:
+                                </span>
+                                <SidebarPreview
+                                    color={data.accent_color}
+                                    logoUrl={store?.logo_url}
+                                    logoPreview={logoPreview}
+                                    storeName={data.name}
                                 />
                             </div>
                         </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-3">
-                            <button
-                                type="submit"
-                                disabled={processing}
-                                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold text-white shadow-lg transition-all active:scale-98 disabled:opacity-60"
-                                style={{ background: data.accent_color }}
-                            >
-                                <CheckCircle2 className="w-4 h-4" />
-                                {processing ? 'Salvando...' : 'Salvar Alterações'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => { reset(); setLogoPreview(null); setRemoveLogo(false); }}
-                                className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition"
-                            >
-                                <RotateCcw className="w-4 h-4" />
-                                Resetar
-                            </button>
-                        </div>
-                    </form>
-
-                    {/* ── Live Preview ── */}
-                    <div className="lg:col-span-1">
-                        <div className="sticky top-24">
-                            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
-                                <div className="flex items-center gap-2 mb-5">
-                                    <Eye className="w-4 h-4 text-slate-500" />
-                                    <h3 className="font-bold text-slate-800 font-['Space_Grotesk'] text-sm">
-                                        Prévia em Tempo Real
-                                    </h3>
-                                </div>
-                                <div className="flex justify-center">
-                                    <SidebarPreview
-                                        color={data.accent_color}
-                                        logoUrl={store.logo_url}
-                                        logoPreview={removeLogo ? null : logoPreview}
-                                        storeName={data.name || store.name}
-                                    />
-                                </div>
-                                <p className="text-center text-[11px] text-slate-400 mt-4 leading-relaxed">
-                                    Prévia da barra lateral da sua loja. O sistema inteiro refletirá estas cores.
-                                </p>
-                            </div>
-                        </div>
                     </div>
-                </div>
-            )}
 
-            {/* ──────────────── TAB 3: WHATSAPP & EVOLUTION API & N8N ──────────────── */}
-            {activeTab === 'whatsapp' && (
-                <div className="space-y-6">
-                    {/* Status Card */}
+                    {/* ── CARD 2: WEBHOOK DE PDV EXTERNO (OPCIONAL & DESABILITÁVEL) ── */}
                     <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shadow-xs shrink-0">
-                                    <MessageSquare className="w-6 h-6" />
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 mb-6 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                    <Workflow className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg">
-                                            WhatsApp Oficial · Loja {store.name}
-                                        </h3>
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                            Instância: {evolution.instance_name || store.slug}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-slate-500 mt-0.5">
-                                        Sincronização bidirecional em tempo real (Inbound Webhook & Outbound Messages).
+                                    <h2 className="font-bold text-slate-900 text-base">Integração PDV Externo (Webhook)</h2>
+                                    <p className="text-xs text-slate-500">
+                                        Envie automaticamente todas as vendas finalizadas no Alira para o seu sistema de PDV externo.
                                     </p>
                                 </div>
                             </div>
 
-                            <Link
-                                href="/atendimentos"
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 shrink-0"
-                            >
-                                <MessageSquare className="w-4 h-4" />
-                                Abrir Central WhatsApp
-                            </Link>
-                        </div>
-
-                        {/* Integration Credentials Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                            {/* Webhook Endpoint */}
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Globe className="w-3.5 h-3.5 text-blue-600" />
-                                        URL do Webhook (Alira CRM)
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleCopy(evolution.webhook_url, 'webhook_url')}
-                                        className="text-blue-600 hover:text-blue-800 text-xs font-semibold"
-                                    >
-                                        {copiedKey === 'webhook_url' ? 'Copiado!' : 'Copiar URL'}
-                                    </button>
-                                </div>
-                                <p className="font-mono text-xs text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200 select-all truncate">
-                                    {evolution.webhook_url}
-                                </p>
-                                <p className="text-[10px] text-slate-400 mt-1">
-                                    Cole esta URL na Evolution API ou no nó HTTP do N8N.
-                                </p>
-                            </div>
-
-                            {/* Webhook Secret Token */}
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Lock className="w-3.5 h-3.5 text-amber-600" />
-                                        Token de Autorização (Bearer Token)
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleCopy(evolution.webhook_secret, 'webhook_secret')}
-                                        className="text-amber-600 hover:text-amber-800 text-xs font-semibold"
-                                    >
-                                        {copiedKey === 'webhook_secret' ? 'Copiado!' : 'Copiar Token'}
-                                    </button>
-                                </div>
-                                <p className="font-mono text-xs text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200 select-all truncate">
-                                    {evolution.webhook_secret}
-                                </p>
-                                <p className="text-[10px] text-slate-400 mt-1">
-                                    Header enviado no Webhook: <code>Authorization: Bearer {evolution.webhook_secret}</code>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Step-by-Step Guides (Tabs / Cards) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* OPÇÃO 1: EVOLUTION API DIRETO (Recomendado) */}
-                        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between">
-                            <div>
-                                <div className="flex items-center gap-2.5 mb-3">
-                                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                                        1
-                                    </div>
-                                    <h4 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                        Opção 1: Evolution API Direto
-                                    </h4>
-                                </div>
-                                <p className="text-xs text-slate-500 mb-4">
-                                    Configuração mais simples e rápida: a Evolution API envia as mensagens diretamente para o Alira CRM.
-                                </p>
-
-                                <div className="space-y-3 text-xs text-slate-700">
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                                        <p className="font-bold text-slate-900 mb-1">Passo 1: Criar a Instância</p>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            No Manager da Evolution API (ou via API), crie uma nova instância com o nome: <b>{store.slug}</b>
-                                        </p>
-                                    </div>
-
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                                        <p className="font-bold text-slate-900 mb-1">Passo 2: Conectar o WhatsApp</p>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            Escaneie o QR Code gerado pelo seu WhatsApp no celular para conectar o número da loja.
-                                        </p>
-                                    </div>
-
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                                        <p className="font-bold text-slate-900 mb-1">Passo 3: Configurar o Webhook</p>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            Em <b>Webhook</b> da instância, ative e preencha:<br />
-                                            • URL: <code className="text-blue-600">{evolution.webhook_url}</code><br />
-                                            • Events: <code>MESSAGES_UPSERT</code>, <code>CONNECTION_UPDATE</code><br />
-                                            • Headers: <code>Authorization: Bearer {evolution.webhook_secret}</code>
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* OPÇÃO 2: VIA N8N AUTOMATION */}
-                        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between">
-                            <div>
-                                <div className="flex items-center gap-2.5 mb-3">
-                                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
-                                        2
-                                    </div>
-                                    <h4 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                        Opção 2: Integração via N8N
-                                    </h4>
-                                </div>
-                                <p className="text-xs text-slate-500 mb-4">
-                                    Ideal se você deseja adicionar Inteligência Artificial (OpenAI), filtros ou automações avançadas no meio do caminho.
-                                </p>
-
-                                <div className="space-y-3 text-xs text-slate-700">
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                                        <p className="font-bold text-slate-900 mb-1">Passo 1: Importar Workflow no N8N</p>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            O arquivo de workflow está pronto em <code>docs/n8n-evolution-inbound.json</code> no seu repositório.
-                                        </p>
-                                    </div>
-
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                                        <p className="font-bold text-slate-900 mb-1">Passo 2: Configurar o Webhook no N8N</p>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            No nó <b>HTTP Request</b> do N8N, configure:<br />
-                                            • URL: <code className="text-blue-600">{evolution.webhook_url}</code><br />
-                                            • Header: <code>Authorization: Bearer {evolution.webhook_secret}</code>
-                                        </p>
-                                    </div>
-
-                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                                        <p className="font-bold text-slate-900 mb-1">Passo 3: Ativar o Fluxo</p>
-                                        <p className="text-[11px] text-slate-600 leading-relaxed">
-                                            Ative o workflow no N8N e aponte o webhook da Evolution API para a URL do nó Webhook do N8N.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Env Variables in Coolify */}
-                    <div className="bg-slate-900 text-slate-100 rounded-3xl p-6 shadow-md border border-slate-800">
-                        <div className="flex items-center gap-2.5 mb-3">
-                            <Terminal className="w-5 h-5 text-emerald-400" />
-                            <h4 className="font-bold text-white font-['Space_Grotesk'] text-base">
-                                Variáveis de Ambiente no Coolify (.env)
-                            </h4>
-                        </div>
-                        <p className="text-xs text-slate-400 mb-3">
-                            Adicione estas variáveis no painel do Coolify do Alira CRM para habilitar o envio de mensagens do CRM para o WhatsApp:
-                        </p>
-                        <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 font-mono text-xs text-emerald-300 space-y-1 select-all overflow-x-auto">
-                            <p>EVOLUTION_API_URL=https://sua-evolution-api.com</p>
-                            <p>EVOLUTION_API_KEY=sua-chave-global-da-evolution</p>
-                            <p>EVOLUTION_WEBHOOK_SECRET={evolution.webhook_secret}</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── MODAL: CRIAR NOVA LOJA / FILIAL ── */}
-            {isCreateModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between mb-5">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                                    <Store className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg">
-                                        Cadastrar Nova Loja / Filial
-                                    </h3>
-                                    <p className="text-xs text-slate-400">Adicione uma nova unidade para a rede {organization?.name}</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setIsCreateModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreateStore} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Nome da Nova Loja *
-                                </label>
+                            {/* Toggle Desabilitável */}
+                            <label className="relative inline-flex items-center cursor-pointer select-none">
                                 <input
-                                    type="text"
-                                    value={newStoreForm.data.name}
-                                    onChange={(e) => newStoreForm.setData('name', e.target.value)}
-                                    placeholder="Ex: Dyvinus Boutique, Filial Centro, E-commerce..."
-                                    required
-                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                                    type="checkbox"
+                                    checked={data.external_pos_webhook_enabled}
+                                    onChange={(e) => setData('external_pos_webhook_enabled', e.target.checked)}
+                                    className="sr-only peer"
                                 />
-                                {newStoreForm.errors.name && <p className="text-xs text-rose-500 mt-1">{newStoreForm.errors.name}</p>}
-                            </div>
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                <span className="ml-3 text-xs font-bold text-slate-700">
+                                    {data.external_pos_webhook_enabled ? (
+                                        <span className="text-emerald-700 font-bold">🟢 Webhook Ativo</span>
+                                    ) : (
+                                        <span className="text-slate-400 font-medium">⚪ Desabilitado</span>
+                                    )}
+                                </span>
+                            </label>
+                        </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Cor de Destaque da Loja
-                                </label>
-                                <div className="flex items-center gap-3">
-                                    <input
-                                        type="color"
-                                        value={newStoreForm.data.accent_color}
-                                        onChange={(e) => newStoreForm.setData('accent_color', e.target.value)}
-                                        className="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer p-1 bg-white"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={newStoreForm.data.accent_color}
-                                        onChange={(e) => newStoreForm.setData('accent_color', e.target.value)}
-                                        className="flex-1 text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono uppercase"
-                                    />
+                        {data.external_pos_webhook_enabled ? (
+                            <div className="space-y-4 animate-in fade-in-50 duration-200">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* URL do Webhook */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                            URL do Endpoint do PDV Externo *
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={data.external_pos_webhook_url}
+                                            onChange={(e) => setData('external_pos_webhook_url', e.target.value)}
+                                            placeholder="https://meupdvexterno.com.br/api/vendas/webhook"
+                                            required={data.external_pos_webhook_enabled}
+                                            className="w-full text-xs font-mono px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 outline-none transition"
+                                        />
+                                        {errors.external_pos_webhook_url && (
+                                            <p className="text-xs text-rose-600 mt-1">{errors.external_pos_webhook_url}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Token / Secret de Autenticação */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                            Token / Secret de Autenticação (Opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={data.external_pos_webhook_secret}
+                                            onChange={(e) => setData('external_pos_webhook_secret', e.target.value)}
+                                            placeholder="Ex: secret-key-pdv-2026"
+                                            className="w-full text-xs font-mono px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-600 outline-none transition"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreateModalOpen(false)}
-                                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={newStoreForm.processing}
-                                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition active:scale-95 disabled:opacity-50"
-                                >
-                                    {newStoreForm.processing ? 'Criando...' : 'Criar e Ativar Loja'}
-                                </button>
+                                {/* Botão Testar Webhook */}
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="text-xs text-slate-600">
+                                        <p className="font-bold text-slate-800">Testar Conexão com o PDV:</p>
+                                        <p className="text-[11px] text-slate-500">
+                                            Envia um evento simulado <code>pos.sale.test_ping</code> para validar a recepção no seu PDV.
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleTestWebhook}
+                                        disabled={testingWebhook || !data.external_pos_webhook_url}
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs disabled:opacity-50 shrink-0"
+                                    >
+                                        <Zap className="w-3.5 h-3.5" />
+                                        {testingWebhook ? 'Testando...' : '🚀 Testar Envio de Webhook'}
+                                    </button>
+                                </div>
+
+                                {/* Resultado do Teste de Webhook */}
+                                {webhookTestResult && (
+                                    <div
+                                        className={`p-3.5 rounded-2xl border text-xs font-medium ${
+                                            webhookTestResult.success
+                                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                : 'bg-rose-50 border-rose-200 text-rose-800'
+                                        }`}
+                                    >
+                                        <p className="font-bold flex items-center gap-1.5">
+                                            {webhookTestResult.success ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                            ) : (
+                                                <AlertCircle className="w-4 h-4 text-rose-600" />
+                                            )}
+                                            {webhookTestResult.message}
+                                        </p>
+                                        {webhookTestResult.status_code && (
+                                            <p className="text-[11px] mt-1 font-mono">
+                                                Status HTTP: {webhookTestResult.status_code}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        </form>
+                        ) : (
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                                A sincronização com webhook de PDV externo está desativada no momento. Ative a chave acima para configurar a URL.
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
+
+                    {/* ── BOTÃO PRINCIPAL DE SALVAR ── */}
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                        <button
+                            type="submit"
+                            disabled={processing}
+                            className="px-6 py-3 rounded-2xl bg-[#ff007f] hover:bg-[#e11d48] text-white text-xs sm:text-sm font-bold shadow-lg shadow-pink-600/20 transition transform active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <Check className="w-4 h-4" />
+                            {processing ? 'Salvando Alterações...' : 'Salvar Todas as Configurações'}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </AppLayout>
     );
 }

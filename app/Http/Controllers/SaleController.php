@@ -216,7 +216,54 @@ class SaleController extends Controller
             }
         }
 
-        return redirect()->route('sales.show', $sale)->with('success', "Venda #{$sale->number} registrada com sucesso e comprovante enviado no WhatsApp!");
+        // Disparo Opcional para Webhook de PDV Externo se configurado e habilitado
+        if ($store->external_pos_webhook_enabled && $store->external_pos_webhook_url) {
+            try {
+                $posPayload = [
+                    'event' => 'pos.sale.created',
+                    'timestamp' => now()->toISOString(),
+                    'store' => [
+                        'id' => $store->id,
+                        'name' => $store->name,
+                        'slug' => $store->slug,
+                    ],
+                    'sale' => [
+                        'id' => $sale->id,
+                        'number' => $sale->number,
+                        'total' => (float) $sale->total,
+                        'payment_method' => $sale->payment_method,
+                        'customer' => $sale->customer ? [
+                            'name' => $sale->customer->name,
+                            'whatsapp' => $sale->customer->whatsapp,
+                        ] : null,
+                        'items' => $sale->items->map(fn($it) => [
+                            'sku' => $it->variant?->sku,
+                            'name' => $it->variant?->product?->name,
+                            'size' => $it->variant?->size,
+                            'color' => $it->variant?->color,
+                            'quantity' => (int) $it->quantity,
+                            'unit_price' => (float) $it->unit_price,
+                            'total' => (float) $it->total,
+                        ]),
+                        'created_at' => $sale->created_at->toISOString(),
+                    ],
+                ];
+
+                $req = \Illuminate\Support\Facades\Http::timeout(5);
+                if ($store->external_pos_webhook_secret) {
+                    $req->withHeaders([
+                        'Authorization' => 'Bearer ' . $store->external_pos_webhook_secret,
+                        'X-Webhook-Secret' => $store->external_pos_webhook_secret,
+                        'X-Alira-Event' => 'pos.sale.created',
+                    ]);
+                }
+                $req->post($store->external_pos_webhook_url, $posPayload);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Erro ao sincronizar venda com PDV externo: " . $e->getMessage());
+            }
+        }
+
+        return redirect()->route('sales.show', $sale)->with('success', "Venda #{$sale->number} registrada com sucesso!");
     }
 
     public function sendReceipt(Request $request, Sale $sale, \App\Services\EvolutionService $evolutionService): RedirectResponse

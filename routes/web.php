@@ -107,6 +107,7 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     // Configurações & Gestão Multi-Lojas
     Route::get('/configuracoes/loja', [StoreSettingsController::class, 'edit'])->name('settings.store');
     Route::post('/configuracoes/loja', [StoreSettingsController::class, 'update'])->name('settings.store.update');
+    Route::post('/configuracoes/loja/test-webhook', [StoreSettingsController::class, 'testWebhook'])->name('settings.store.testWebhook');
     Route::post('/lojas/nova', [StoreSettingsController::class, 'store'])->name('stores.store');
     Route::post('/lojas/{store}/alternar', [StoreSettingsController::class, 'switchStore'])->name('stores.switch');
 });

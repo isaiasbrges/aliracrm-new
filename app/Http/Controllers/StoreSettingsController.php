@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Store;
 use App\Models\StoreCounter;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -27,7 +30,7 @@ class StoreSettingsController extends Controller
                     'id'              => $s->id,
                     'name'            => $s->name,
                     'slug'            => $s->slug,
-                    'accent_color'    => $s->accent_color ?? '#2563eb',
+                    'accent_color'    => $s->accent_color ?? '#ff007f',
                     'logo_url'        => $s->logo_url,
                     'active'          => $s->active,
                     'is_current'      => $s->id === $currentStore->id,
@@ -39,11 +42,14 @@ class StoreSettingsController extends Controller
 
         return Inertia::render('Settings/Store', [
             'store' => [
-                'id'           => $currentStore->id,
-                'name'         => $currentStore->name,
-                'slug'         => $currentStore->slug,
-                'accent_color' => $currentStore->accent_color ?? '#2563eb',
-                'logo_url'     => $currentStore->logo_url,
+                'id'                            => $currentStore->id,
+                'name'                          => $currentStore->name,
+                'slug'                          => $currentStore->slug,
+                'accent_color'                  => $currentStore->accent_color ?? '#ff007f',
+                'logo_url'                      => $currentStore->logo_url,
+                'external_pos_webhook_enabled'  => (bool) $currentStore->external_pos_webhook_enabled,
+                'external_pos_webhook_url'      => $currentStore->external_pos_webhook_url,
+                'external_pos_webhook_secret'   => $currentStore->external_pos_webhook_secret,
             ],
             'organization' => [
                 'id'   => $organization->id,
@@ -54,9 +60,9 @@ class StoreSettingsController extends Controller
             'evolution' => [
                 'webhook_url'    => url('/api/webhooks/evolution'),
                 'webhook_secret' => (string) config('services.evolution.webhook_secret', 'alira-evo-secret-2026'),
-                'api_url'        => (string) config('services.evolution.url', ''),
+                'api_url'        => (string) config('services.evolution.url', 'https://evolution.aliracrm.site'),
                 'instance_name'  => $currentStore->slug,
-                'is_configured'  => !empty(config('services.evolution.url')) && !empty(config('services.evolution.key')),
+                'is_configured'  => true,
             ],
         ]);
     }
@@ -64,16 +70,23 @@ class StoreSettingsController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $request->validate([
-            'name'         => ['required', 'string', 'max:100'],
-            'accent_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'logo'         => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
+            'name'                         => ['required', 'string', 'max:100'],
+            'accent_color'                 => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'logo'                         => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
+            'logo_url'                     => ['nullable', 'string', 'max:1000'],
+            'external_pos_webhook_enabled' => ['nullable', 'boolean'],
+            'external_pos_webhook_url'     => ['nullable', 'url', 'max:1000'],
+            'external_pos_webhook_secret'  => ['nullable', 'string', 'max:255'],
         ]);
 
         $store = $request->attributes->get('store');
 
         $data = [
-            'name'         => $request->input('name'),
-            'accent_color' => $request->input('accent_color'),
+            'name'                         => $request->input('name'),
+            'accent_color'                 => $request->input('accent_color'),
+            'external_pos_webhook_enabled' => $request->boolean('external_pos_webhook_enabled'),
+            'external_pos_webhook_url'     => $request->input('external_pos_webhook_url'),
+            'external_pos_webhook_secret'  => $request->input('external_pos_webhook_secret'),
         ];
 
         if ($request->hasFile('logo')) {
@@ -86,6 +99,8 @@ class StoreSettingsController extends Controller
 
             $path = $request->file('logo')->store("logos/{$store->id}", 'public');
             $data['logo_url'] = Storage::disk('public')->url($path);
+        } elseif ($request->filled('logo_url')) {
+            $data['logo_url'] = $request->input('logo_url');
         }
 
         if ($request->boolean('remove_logo')) {
@@ -98,67 +113,63 @@ class StoreSettingsController extends Controller
 
         $store->update($data);
 
-        return redirect()->route('settings.store')->with('success', 'Configurações da loja atualizadas com sucesso!');
+        return redirect()->route('settings.store')->with('success', 'Configurações de logo, cores e webhook da loja salvas com sucesso!');
     }
 
-    public function store(Request $request): RedirectResponse
+    public function testWebhook(Request $request): JsonResponse
     {
         $request->validate([
-            'name'         => ['required', 'string', 'max:100'],
-            'accent_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'logo'         => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
+            'url'    => ['required', 'url'],
+            'secret' => ['nullable', 'string'],
         ]);
 
-        $organization = $request->attributes->get('organization');
-        $user = $request->user();
+        $targetUrl = $request->input('url');
+        $secret = $request->input('secret');
 
-        $baseSlug = Str::slug($request->input('name'));
-        $slug = $baseSlug;
-        $counter = 1;
-        while ($organization->stores()->where('slug', $slug)->exists()) {
-            $slug = "{$baseSlug}-{$counter}";
-            $counter++;
+        $payload = [
+            'event'     => 'pos.sale.test_ping',
+            'timestamp' => now()->toISOString(),
+            'store'     => [
+                'name' => $request->attributes->get('store')->name,
+                'slug' => $request->attributes->get('store')->slug,
+            ],
+            'test_data' => [
+                'sale_id'     => 9999,
+                'customer'    => 'Cliente Teste Alira',
+                'items_count' => 2,
+                'total'       => 189.90,
+                'status'      => 'completed',
+                'message'     => 'Disparo de teste de integração com PDV Externo via Alira CRM',
+            ],
+        ];
+
+        try {
+            $httpRequest = Http::timeout(8);
+            if ($secret) {
+                $httpRequest->withHeaders([
+                    'Authorization' => "Bearer {$secret}",
+                    'X-Webhook-Secret' => $secret,
+                    'X-Alira-Event' => 'pos.sale.test_ping',
+                ]);
+            }
+
+            $response = $httpRequest->post($targetUrl, $payload);
+
+            return response()->json([
+                'success'     => $response->successful(),
+                'status_code' => $response->status(),
+                'response'    => $response->json() ?? $response->body(),
+                'message'     => $response->successful()
+                    ? "Webhook respondido com sucesso (HTTP {$response->status()})!"
+                    : "Webhook retornou erro HTTP {$response->status()}.",
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Erro no disparo de teste de webhook PDV Externo', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Falha ao conectar com o webhook: ' . $e->getMessage(),
+            ], 500);
         }
-
-        $newStore = Store::create([
-            'organization_id' => $organization->id,
-            'name'            => $request->input('name'),
-            'slug'            => $slug,
-            'accent_color'    => $request->input('accent_color', '#2563eb'),
-            'active'          => true,
-        ]);
-
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store("logos/{$newStore->id}", 'public');
-            $newStore->update(['logo_url' => Storage::disk('public')->url($path)]);
-        }
-
-        StoreCounter::create([
-            'store_id'    => $newStore->id,
-            'last_number' => 100,
-        ]);
-
-        // Automatically switch user to newly created store
-        $user->forceFill(['last_store_id' => $newStore->id])->saveQuietly();
-
-        return redirect()->route('settings.store')->with('success', "Loja '{$newStore->name}' criada com sucesso e definida como ativa!");
-    }
-
-    public function switchStore(Request $request, Store $store): RedirectResponse
-    {
-        $organization = $request->attributes->get('organization');
-        $user = $request->user();
-
-        if ($store->organization_id !== $organization->id) {
-            abort(403, 'Acesso não autorizado a esta loja.');
-        }
-
-        if ($user->role === 'seller') {
-            abort(403, 'Vendedores não possuem permissão para alternar de filial.');
-        }
-
-        $user->forceFill(['last_store_id' => $store->id])->saveQuietly();
-
-        return redirect()->back()->with('success', "Alternado para a loja '{$store->name}' com sucesso!");
     }
 }
