@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import AppLayout from '../../Layouts/AppLayout';
 import {
     User,
@@ -48,6 +48,14 @@ export default function CustomerShow({ customer }) {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => router.post('/atendimentos/iniciar', { customer_id: customer.id })}
+                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 transition active:scale-95"
+                    >
+                        <MessageSquare className="w-4 h-4" />
+                        Conversar no WhatsApp
+                    </button>
                     <Link
                         href={`/vendas/nova?customer_id=${customer.id}`}
                         className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition active:scale-95"

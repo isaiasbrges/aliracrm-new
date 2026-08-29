@@ -189,6 +189,14 @@ export default function CustomersIndex({ customers, metrics, search }) {
 
                                         <td className="py-3.5 px-4 text-right">
                                             <div className="flex items-center justify-end gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => router.post('/atendimentos/iniciar', { customer_id: customer.id })}
+                                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                                    title="Conversar no WhatsApp"
+                                                >
+                                                    <MessageSquare className="w-4 h-4" />
+                                                </button>
                                                 <Link
                                                     href={`/vendas/nova?customer_id=${customer.id}`}
                                                     className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
