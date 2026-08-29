@@ -13,18 +13,18 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $organization = Organization::query()->updateOrCreate(
-            ['slug' => 'dyvinuss-looks'],
+            ['slug' => 'dyvinus-org'],
             ['name' => 'Dyvinuss Looks', 'status' => 'active'],
         );
 
-        // Loja Única & Exclusiva: Dyvinuss Looks (/loja/dyvinuss-looks)
+        // Loja Principal & Instância WhatsApp Evolution API (dyvinus)
         $storeDyvinus = Store::query()->updateOrCreate(
-            ['organization_id' => $organization->id, 'slug' => 'dyvinuss-looks'],
+            ['organization_id' => $organization->id, 'slug' => 'dyvinus'],
             ['name' => 'Dyvinuss Looks', 'active' => true, 'accent_color' => '#db2777'],
         );
         StoreCounter::query()->firstOrCreate(['store_id' => $storeDyvinus->id], ['last_number' => 100]);
 
-        // Remover quaisquer outras lojas anteriores
+        // Remover outras lojas anteriores
         Store::query()->where('id', '!=', $storeDyvinus->id)->delete();
 
         User::query()->updateOrCreate(

@@ -36,9 +36,9 @@ return [
     ],
 
     'evolution' => [
-        'url' => env('EVOLUTION_API_URL'),
-        'key' => env('EVOLUTION_API_KEY'),
-        'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
+        'url' => env('EVOLUTION_API_URL', 'https://evolution.aliracrm.site'),
+        'key' => env('EVOLUTION_API_KEY', 'B6D711FCDE4D4FD59365441E08497C40'),
+        'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET', 'alira-evo-secret-2026'),
     ],
 
 ];

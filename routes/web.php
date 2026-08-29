@@ -26,9 +26,9 @@ Route::middleware('guest')->group(function (): void {
 Route::get('/catalogo', [\App\Http\Controllers\PublicCatalogController::class, 'index'])->name('catalog.public.default');
 Route::get('/loja/{slug}/catalogo', [\App\Http\Controllers\PublicCatalogController::class, 'index'])->name('catalog.public');
 
-// Acesso Direto à Loja pelo Link: /loja/{slug}
 Route::get('/loja/{slug}', function (Request $request, string $slug) {
-    $store = Store::query()->where('slug', $slug)->where('active', true)->firstOrFail();
+    $store = Store::query()->where('slug', $slug)->where('active', true)->first()
+        ?? Store::query()->where('active', true)->firstOrFail();
 
     if ($request->user()) {
         if ($store->organization_id === $request->user()->organization_id) {

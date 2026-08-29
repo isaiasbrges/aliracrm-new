@@ -13,8 +13,8 @@ class EvolutionService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim((string) config('services.evolution.url', env('EVOLUTION_API_URL', '')), '/');
-        $this->globalApiKey = (string) config('services.evolution.key', env('EVOLUTION_API_KEY', ''));
+        $this->baseUrl = rtrim((string) (config('services.evolution.url') ?: env('EVOLUTION_API_URL') ?: 'https://evolution.aliracrm.site'), '/');
+        $this->globalApiKey = (string) (config('services.evolution.key') ?: env('EVOLUTION_API_KEY') ?: 'B6D711FCDE4D4FD59365441E08497C40');
     }
 
     /**

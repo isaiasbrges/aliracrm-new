@@ -15,11 +15,16 @@ class EvolutionWebhookController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
-        $expected = (string) config('services.evolution.webhook_secret', env('EVOLUTION_WEBHOOK_SECRET', ''));
-        $provided = (string) $request->bearerToken();
+        $expectedSecret = (string) config('services.evolution.webhook_secret', env('EVOLUTION_WEBHOOK_SECRET', 'alira-evo-secret-2026'));
+        $globalApiKey = (string) config('services.evolution.key', env('EVOLUTION_API_KEY', 'B6D711FCDE4D4FD59365441E08497C40'));
+        $providedToken = (string) ($request->bearerToken() ?? $request->header('apikey') ?? $request->header('x-api-key') ?? '');
 
-        // Se houver webhook_secret configurado, validar Bearer token
-        if ($expected !== '' && !hash_equals($expected, $provided)) {
+        // Aceita se corresponder ao segredo do webhook ou à chave global da Evolution
+        $isAuthorized = empty($expectedSecret)
+            || hash_equals($expectedSecret, $providedToken)
+            || ($globalApiKey !== '' && hash_equals($globalApiKey, $providedToken));
+
+        if (!$isAuthorized) {
             Log::warning('Tentativa de acesso não autorizado ao Webhook Evolution API', [
                 'ip' => $request->ip(),
             ]);
