@@ -139,6 +139,12 @@ export default function ConversationsIndex({
     ]);
     const [sendingInteractive, setSendingInteractive] = useState(false);
 
+    // Modal de Cobrança PIX Rápida
+    const [isPixModalOpen, setIsPixModalOpen] = useState(false);
+    const [pixAmount, setPixAmount] = useState('');
+    const [pixKey, setPixKey] = useState('pix@dyvinusslooks.com.br');
+    const [pixBeneficiary, setPixBeneficiary] = useState('Dyvinuss Looks');
+
     const [quickReplies, setQuickReplies] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('alira_custom_quick_replies');
@@ -537,6 +543,17 @@ export default function ConversationsIndex({
 
                         {/* Quick Replies & Interactive Options Chips Bar */}
                         <div className="px-3.5 py-2 bg-slate-50 border-t border-slate-200/70 flex items-center gap-2 overflow-x-auto text-[11px]">
+                            {/* Botão de Cobrança PIX */}
+                            <button
+                                type="button"
+                                onClick={() => setIsPixModalOpen(true)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs transition shrink-0 active:scale-95"
+                                title="Gerar cobrança PIX com valor e chave para o cliente"
+                            >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>Cobrança PIX</span>
+                            </button>
+
                             {/* Botão de Enviar Opções Selecionáveis */}
                             <button
                                 type="button"
@@ -733,6 +750,101 @@ export default function ConversationsIndex({
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: GERAR COBRANÇA PIX RÁPIDA ── */}
+            {isPixModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                    <QrCode className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                        Gerador de PIX Copia-e-Cola
+                                    </h3>
+                                    <p className="text-xs text-slate-400">
+                                        Preencha o valor para formatar a cobrança no WhatsApp
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsPixModalOpen(false)}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3.5 py-4">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Valor a Cobrar (R$)
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={pixAmount}
+                                    onChange={(e) => setPixAmount(e.target.value)}
+                                    placeholder="Ex: 189.90"
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition font-mono font-bold text-slate-900"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Chave PIX da Loja
+                                </label>
+                                <input
+                                    type="text"
+                                    value={pixKey}
+                                    onChange={(e) => setPixKey(e.target.value)}
+                                    placeholder="CNPJ, E-mail, Celular ou Chave Aleatória"
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 outline-none transition font-mono"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Beneficiário / Nome da Loja
+                                </label>
+                                <input
+                                    type="text"
+                                    value={pixBeneficiary}
+                                    onChange={(e) => setPixBeneficiary(e.target.value)}
+                                    placeholder="Dyvinuss Looks"
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 outline-none transition"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsPixModalOpen(false)}
+                                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const clientName = activeConversation?.customer?.name ? activeConversation.customer.name.split(' ')[0] : 'Cliente';
+                                    const formattedVal = pixAmount ? `R$ ${parseFloat(pixAmount).toFixed(2).replace('.', ',')}` : 'R$ [Valor]';
+                                    const text = `✨ *Dados para Pagamento PIX - Dyvinuss Looks* ✨\n\nOlá, ${clientName}! Seguem os dados para pagamento do seu pedido:\n\n💰 *Valor Total:* ${formattedVal}\n🔑 *Chave PIX:* ${pixKey || '[chave-pix-loja]'}\n👤 *Favorecido:* ${pixBeneficiary || 'Dyvinuss Looks'}\n\nAssim que realizar a transferência, basta nos enviar o comprovante por aqui para confirmarmos imediatamente! 💖`;
+                                    setMsgData('body', text);
+                                    setIsPixModalOpen(false);
+                                }}
+                                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 flex items-center gap-1.5"
+                            >
+                                <Send className="w-3.5 h-3.5" />
+                                Inserir Cobrança no Chat
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

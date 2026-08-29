@@ -146,4 +146,60 @@ class CustomerController extends Controller
 
         return response()->json(['customer' => $customer, 'already_exists' => false], 201);
     }
+
+    public function sendBirthdayGift(Request $request, Customer $customer, \App\Services\EvolutionService $evolutionService): RedirectResponse
+    {
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+
+        if ($customer->organization_id !== $organizationId || $customer->store_id !== $store->id) {
+            abort(403);
+        }
+
+        if (!$customer->whatsapp) {
+            return back()->with('error', 'Cliente sem WhatsApp cadastrado.');
+        }
+
+        $firstName = explode(' ', trim($customer->name))[0];
+        $spintax = [
+            "✨ *Feliz Aniversário, {$firstName}!* 🎉🎂\n\nToda a equipe da *{$store->name}* deseja um ano repleto de luz, conquistas e looks incríveis! 💖\n\n🎁 Para comemorar seu dia especial, preparamos um *Presente Exclusivo de 15% OFF* em toda a loja!\n\n🏷️ Use o cupom: *NIVERVIP*\n🛍️ Veja as novidades no nosso catálogo: https://aliracrm.site/catalogo\n\nVem comemorar linda com a gente! ✨",
+            "🎂 *Hoje é seu dia, {$firstName}! Parabéns!* 🥳✨\n\nQue seu novo ciclo seja maravilhoso! A *{$store->name}* quer te presentear com *15% de desconto* na sua próxima escolha! 🎁\n\n👗 Escolha seu look de aniversário com carinho: https://aliracrm.site/catalogo\n\nUm abraço especial de toda nossa equipe! 💖",
+        ];
+
+        $messageText = $spintax[array_rand($spintax)];
+        $instanceName = $store->slug ?? 'dyvinus';
+        $evoResult = $evolutionService->sendMessage($instanceName, $customer->whatsapp, $messageText);
+
+        // Gravar na conversa do CRM
+        $conversation = \App\Models\Conversation::firstOrCreate(
+            [
+                'organization_id' => $organizationId,
+                'store_id' => $store->id,
+                'channel' => 'whatsapp',
+                'external_chat_id' => $customer->whatsapp,
+            ],
+            [
+                'customer_id' => $customer->id,
+                'status' => 'open',
+                'priority' => 'normal',
+                'subject' => 'Atendimento com ' . $customer->name,
+                'last_message_preview' => "🎂 Presente de Aniversário Enviado",
+                'last_message_at' => now(),
+            ]
+        );
+
+        \App\Models\Message::create([
+            'organization_id' => $organizationId,
+            'conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'text',
+            'body' => $messageText,
+            'status' => ($evoResult['success'] ?? false) ? 'delivered' : 'sent',
+            'from_phone' => 'store',
+            'to_phone' => $customer->whatsapp,
+            'sent_at' => now(),
+        ]);
+
+        return back()->with('success', "Presente de aniversário enviado com sucesso no WhatsApp de {$customer->name}!");
+    }
 }

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link } from '@inertiajs/react';
+import React, { useState } from 'react';
+import { Link, router, useForm } from '@inertiajs/react';
 import AppLayout from '../../Layouts/AppLayout';
 import {
     ShoppingBag,
@@ -14,10 +14,23 @@ import {
     QrCode,
     Banknote,
     Phone,
-    Sparkles
+    Sparkles,
+    Send,
+    Truck,
+    Package,
+    X,
+    MessageSquare,
 } from 'lucide-react';
 
 export default function SalesShow({ sale }) {
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [sendingReceipt, setSendingReceipt] = useState(false);
+
+    const { data: trackingData, setData: setTrackingData, post: postTracking, processing: sendingTracking, reset: resetTracking } = useForm({
+        tracking_code: '',
+        carrier: 'Correios',
+    });
+
     const formatCurrency = (val) => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
@@ -27,6 +40,32 @@ export default function SalesShow({ sale }) {
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handleSendReceipt = () => {
+        if (!sale.customer?.whatsapp) {
+            alert('Esta venda não possui cliente com WhatsApp vinculado.');
+            return;
+        }
+
+        setSendingReceipt(true);
+        router.post(`/vendas/${sale.id}/comprovante`, {}, {
+            preserveScroll: true,
+            onFinish: () => setSendingReceipt(false),
+        });
+    };
+
+    const handleSendTrackingSubmit = (e) => {
+        e.preventDefault();
+        if (!trackingData.tracking_code.trim()) return;
+
+        postTracking(`/vendas/${sale.id}/rastreio`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsTrackingModalOpen(false);
+                resetTracking();
+            },
+        });
     };
 
     const renderPaymentMethod = (method) => {
@@ -81,7 +120,31 @@ export default function SalesShow({ sale }) {
                     </h1>
                 </div>
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Botão Enviar WhatsApp */}
+                    {sale.customer?.whatsapp && (
+                        <>
+                            <button
+                                onClick={handleSendReceipt}
+                                disabled={sendingReceipt}
+                                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-md shadow-emerald-600/20 active:scale-95 disabled:opacity-50"
+                                title="Enviar ou reenviar comprovante no WhatsApp do cliente"
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                                {sendingReceipt ? 'Enviando...' : 'Reenviar WhatsApp'}
+                            </button>
+
+                            <button
+                                onClick={() => setIsTrackingModalOpen(true)}
+                                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-md shadow-purple-600/20 active:scale-95"
+                                title="Enviar código de rastreamento no WhatsApp"
+                            >
+                                <Truck className="w-4 h-4" />
+                                Enviar Rastreio
+                            </button>
+                        </>
+                    )}
+
                     <button
                         onClick={handlePrint}
                         className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
@@ -92,7 +155,7 @@ export default function SalesShow({ sale }) {
 
                     <Link
                         href="/vendas/nova"
-                        className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition active:scale-95"
+                        className="inline-flex items-center justify-center gap-2 bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-pink-600/20 transition active:scale-95"
                     >
                         <ShoppingBag className="w-4 h-4" />
                         Nova Venda
@@ -106,10 +169,10 @@ export default function SalesShow({ sale }) {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 pb-8 border-b border-slate-100">
                     <div>
                         <div className="flex items-center gap-2 font-['Space_Grotesk'] text-2xl font-bold text-slate-900">
-                            Alira <span className="text-xs uppercase font-extrabold bg-blue-600 text-white px-2 py-0.5 rounded-md font-sans">CRM</span>
+                            Dyvinuss <span className="text-xs uppercase font-extrabold bg-pink-600 text-white px-2 py-0.5 rounded-md font-sans">LOOKS</span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">Comprovante de Venda Não-Fiscal</p>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5">Operação PDV Balcão</p>
+                        <p className="text-xs text-slate-500 mt-1">Comprovante de Venda & Atendimento</p>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5">Operação PDV Balcão & Online</p>
                     </div>
 
                     <div className="text-left sm:text-right">
@@ -141,7 +204,7 @@ export default function SalesShow({ sale }) {
                             <div>
                                 <p className="font-bold text-slate-900 text-sm">{sale.customer.name}</p>
                                 <p className="text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-                                    <Phone className="w-3 h-3 text-slate-400" /> {sale.customer.whatsapp}
+                                    <Phone className="w-3 h-3 text-emerald-600" /> {sale.customer.whatsapp}
                                 </p>
                                 {sale.customer.email && <p className="text-slate-400">{sale.customer.email}</p>}
                             </div>
@@ -152,9 +215,9 @@ export default function SalesShow({ sale }) {
 
                     <div className="sm:text-right">
                         <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                            Atendimento & Vendedor
+                            Atendimento & Vendedora
                         </span>
-                        <p className="font-bold text-slate-900 text-sm">{sale.seller?.name || 'Vendedor Padrão'}</p>
+                        <p className="font-bold text-slate-900 text-sm">{sale.seller?.name || 'Vendedora Dyvinuss'}</p>
                         <div className="text-slate-500 mt-1 flex sm:justify-end items-center gap-1.5">
                             <span>Forma de Pagamento:</span>
                             {renderPaymentMethod(sale.payment_method)}
@@ -179,7 +242,7 @@ export default function SalesShow({ sale }) {
                                     <tr key={item.id}>
                                         <td className="py-3">
                                             <p className="font-bold text-slate-900">
-                                                {item.variant?.product?.name || 'Produto'}
+                                                {item.variant?.product?.name || 'Look'}
                                             </p>
                                             <p className="text-[11px] text-slate-500">
                                                 Tam: {item.variant?.size} · Cor: {item.variant?.color} · SKU: {item.variant?.sku}
@@ -223,16 +286,91 @@ export default function SalesShow({ sale }) {
 
                     <div className="flex items-center justify-between text-lg font-extrabold text-slate-900 pt-3 border-t border-slate-200 font-['Space_Grotesk']">
                         <span>Total Pago</span>
-                        <span className="text-emerald-600 text-xl">{formatCurrency(sale.total)}</span>
+                        <span className="text-pink-600 text-xl">{formatCurrency(sale.total)}</span>
                     </div>
                 </div>
 
                 {/* Receipt Footer */}
                 <div className="mt-10 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
-                    <p>Obrigado pela preferência!</p>
-                    <p className="mt-1 text-[11px]">Alira CRM & Omnichannel · Sistema de Gestão Comercial</p>
+                    <p>Obrigado pela preferência e carinho! 💖</p>
+                    <p className="mt-1 text-[11px]">Dyvinuss Looks · Moda Feminina Exclusiva & Elegância</p>
                 </div>
             </div>
+
+            {/* Modal Enviar Código de Rastreio */}
+            {isTrackingModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base flex items-center gap-2">
+                                <Truck className="w-5 h-5 text-purple-600" />
+                                Enviar Rastreio no WhatsApp
+                            </h3>
+                            <button
+                                onClick={() => setIsTrackingModalOpen(false)}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSendTrackingSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                    Código de Rastreamento *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={trackingData.tracking_code}
+                                    onChange={(e) => setTrackingData('tracking_code', e.target.value)}
+                                    placeholder="Ex: NL123456789BR"
+                                    required
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition font-mono uppercase"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                    Transportadora
+                                </label>
+                                <select
+                                    value={trackingData.carrier}
+                                    onChange={(e) => setTrackingData('carrier', e.target.value)}
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-purple-500 outline-none transition"
+                                >
+                                    <option value="Correios">Correios (Sedex / PAC)</option>
+                                    <option value="Motoboy Express">Motoboy Express (Local)</option>
+                                    <option value="Jadlog">Jadlog</option>
+                                    <option value="Melhor Envio">Melhor Envio</option>
+                                    <option value="Loggi">Loggi</option>
+                                </select>
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                📲 A cliente <strong>{sale.customer?.name}</strong> receberá no WhatsApp uma mensagem elegante com o código e o link direto para acompanhar a entrega.
+                            </p>
+
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsTrackingModalOpen(false)}
+                                    className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={sendingTracking || !trackingData.tracking_code.trim()}
+                                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    {sendingTracking ? 'Disparando...' : 'Disparar Rastreio no WhatsApp'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </AppLayout>
     );
 }

@@ -127,7 +127,7 @@ class SaleController extends Controller
         return Inertia::render('Sales/Show', compact('sale'));
     }
 
-    public function store(Request $request, SaleService $saleService): RedirectResponse
+    public function store(Request $request, SaleService $saleService, \App\Services\EvolutionService $evolutionService): RedirectResponse
     {
         $data = $request->validate([
             'customer_id' => ['nullable', 'integer'],
@@ -137,14 +137,158 @@ class SaleController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:9999'],
         ]);
 
+        $store = $request->attributes->get('store');
+        $organizationId = $request->user()->organization_id;
+
         $sale = $saleService->create(
             user: $request->user(),
-            store: $request->attributes->get('store'),
+            store: $store,
             customerId: isset($data['customer_id']) ? (int) $data['customer_id'] : null,
             paymentMethod: $data['payment_method'],
             items: $data['items'],
         );
 
-        return redirect()->route('sales.show', $sale)->with('success', "Venda #{$sale->number} registrada com sucesso!");
+        // Disparo Automático de Comprovante de Venda no WhatsApp
+        if ($sale->customer && $sale->customer->whatsapp) {
+            try {
+                $paymentLabels = [
+                    'pix' => 'PIX',
+                    'credit' => 'Cartão de Crédito',
+                    'debit' => 'Cartão de Débito',
+                    'cash' => 'Dinheiro',
+                    'other' => 'Outro',
+                ];
+
+                $firstName = explode(' ', trim($sale->customer->name))[0];
+                $methodLabel = $paymentLabels[$sale->payment_method] ?? strtoupper($sale->payment_method);
+                $formattedTotal = 'R$ ' . number_format((float) $sale->total, 2, ',', '.');
+
+                $itemsText = '';
+                foreach ($sale->items as $item) {
+                    $prodName = $item->variant?->product?->name ?? 'Look';
+                    $variantInfo = "({$item->variant?->size}/{$item->variant?->color})";
+                    $itemTotal = 'R$ ' . number_format((float) $item->total, 2, ',', '.');
+                    $itemsText .= "• {$item->quantity}x {$prodName} {$variantInfo} - {$itemTotal}\n";
+                }
+
+                $messageText = "✨ *Pedido Confirmado - {$store->name}* ✨\n\n"
+                    . "Olá, {$firstName}! Muito obrigado pela sua compra! 💖\n\n"
+                    . "🧾 *Pedido #{$sale->number}*\n"
+                    . "🛍️ *Peças Selecionadas:*\n{$itemsText}\n"
+                    . "💰 *Valor Total:* {$formattedTotal}\n"
+                    . "💳 *Forma de Pagamento:* {$methodLabel}\n\n"
+                    . "Já estamos preparando seu pacote com muito carinho! Qualquer dúvida, basta nos responder por aqui! ✨";
+
+                $instanceName = $store->slug ?? 'dyvinus';
+                $evoResult = $evolutionService->sendMessage($instanceName, $sale->customer->whatsapp, $messageText);
+
+                // Gravar na conversa do CRM
+                $conversation = \App\Models\Conversation::firstOrCreate(
+                    [
+                        'organization_id' => $organizationId,
+                        'store_id' => $store->id,
+                        'channel' => 'whatsapp',
+                        'external_chat_id' => $sale->customer->whatsapp,
+                    ],
+                    [
+                        'customer_id' => $sale->customer->id,
+                        'status' => 'open',
+                        'priority' => 'normal',
+                        'subject' => 'Atendimento com ' . $sale->customer->name,
+                        'last_message_preview' => "Comprovante Pedido #{$sale->number}",
+                        'last_message_at' => now(),
+                    ]
+                );
+
+                \App\Models\Message::create([
+                    'organization_id' => $organizationId,
+                    'conversation_id' => $conversation->id,
+                    'direction' => 'outbound',
+                    'type' => 'text',
+                    'body' => $messageText,
+                    'status' => ($evoResult['success'] ?? false) ? 'delivered' : 'sent',
+                    'from_phone' => 'store',
+                    'to_phone' => $sale->customer->whatsapp,
+                    'sent_at' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Erro ao disparar WhatsApp pós-venda: " . $e->getMessage());
+            }
+        }
+
+        return redirect()->route('sales.show', $sale)->with('success', "Venda #{$sale->number} registrada com sucesso e comprovante enviado no WhatsApp!");
+    }
+
+    public function sendReceipt(Request $request, Sale $sale, \App\Services\EvolutionService $evolutionService): RedirectResponse
+    {
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+
+        if ($sale->organization_id !== $organizationId || $sale->store_id !== $store->id) {
+            abort(403);
+        }
+
+        if (!$sale->customer || !$sale->customer->whatsapp) {
+            return back()->with('error', 'Esta venda não possui cliente com WhatsApp vinculado.');
+        }
+
+        $sale->load(['items.variant.product', 'customer']);
+        $firstName = explode(' ', trim($sale->customer->name))[0];
+        $formattedTotal = 'R$ ' . number_format((float) $sale->total, 2, ',', '.');
+
+        $itemsText = '';
+        foreach ($sale->items as $item) {
+            $prodName = $item->variant?->product?->name ?? 'Look';
+            $variantInfo = "({$item->variant?->size}/{$item->variant?->color})";
+            $itemTotal = 'R$ ' . number_format((float) $item->total, 2, ',', '.');
+            $itemsText .= "• {$item->quantity}x {$prodName} {$variantInfo} - {$itemTotal}\n";
+        }
+
+        $messageText = "✨ *Comprovante de Compra - {$store->name}* ✨\n\n"
+            . "Olá, {$firstName}! Segue o comprovante do seu pedido na Dyvinuss Looks:\n\n"
+            . "🧾 *Pedido #{$sale->number}*\n"
+            . "🛍️ *Itens:*\n{$itemsText}\n"
+            . "💰 *Total:* {$formattedTotal}\n\n"
+            . "Obrigado pela preferência e carinho! 💖";
+
+        $instanceName = $store->slug ?? 'dyvinus';
+        $evolutionService->sendMessage($instanceName, $sale->customer->whatsapp, $messageText);
+
+        return back()->with('success', "Comprovante enviado com sucesso no WhatsApp de {$sale->customer->name}!");
+    }
+
+    public function sendTracking(Request $request, Sale $sale, \App\Services\EvolutionService $evolutionService): RedirectResponse
+    {
+        $data = $request->validate([
+            'tracking_code' => ['required', 'string', 'max:100'],
+            'carrier' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+
+        if ($sale->organization_id !== $organizationId || $sale->store_id !== $store->id) {
+            abort(403);
+        }
+
+        if (!$sale->customer || !$sale->customer->whatsapp) {
+            return back()->with('error', 'Esta venda não possui cliente com WhatsApp vinculado.');
+        }
+
+        $firstName = explode(' ', trim($sale->customer->name))[0];
+        $carrierName = $data['carrier'] ?: 'Correios';
+        $trackingUrl = "https://rastreamento.correios.com.br/app/index.php?codigo={$data['tracking_code']}";
+
+        $messageText = "📦 *Seu Pedido Está a Caminho! - {$store->name}* 🚚\n\n"
+            . "Olá, {$firstName}! Seu pedido #{$sale->number} foi postado e já está a caminho do seu endereço! 💖\n\n"
+            . "🔍 *Transportadora:* {$carrierName}\n"
+            . "🏷️ *Código de Rastreio:* `{$data['tracking_code']}`\n"
+            . "🔗 *Acompanhe seu pacote:* {$trackingUrl}\n\n"
+            . "Assim que suas peças chegarem, nos avise o que achou dos looks! ✨";
+
+        $instanceName = $store->slug ?? 'dyvinus';
+        $evolutionService->sendMessage($instanceName, $sale->customer->whatsapp, $messageText);
+
+        return back()->with('success', "Código de rastreamento enviado no WhatsApp com sucesso!");
     }
 }

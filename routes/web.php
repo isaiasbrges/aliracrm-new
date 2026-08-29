@@ -80,6 +80,7 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::post('/clientes', [CustomerController::class, 'store'])->name('customers.store');
     Route::post('/clientes/pdv', [CustomerController::class, 'storeFromPdv'])->name('customers.storeFromPdv');
     Route::get('/clientes/{customer}', [CustomerController::class, 'show'])->name('customers.show');
+    Route::post('/clientes/{customer}/aniversario', [CustomerController::class, 'sendBirthdayGift'])->name('customers.sendBirthdayGift');
 
     // Produtos
     Route::get('/produtos', [ProductController::class, 'index'])->name('products.index');
@@ -91,6 +92,8 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/vendas/nova', [SaleController::class, 'create'])->name('sales.create');
     Route::post('/vendas', [SaleController::class, 'store'])->name('sales.store');
     Route::get('/vendas/{sale}', [SaleController::class, 'show'])->name('sales.show');
+    Route::post('/vendas/{sale}/comprovante', [SaleController::class, 'sendReceipt'])->name('sales.sendReceipt');
+    Route::post('/vendas/{sale}/rastreio', [SaleController::class, 'sendTracking'])->name('sales.sendTracking');
 
     // Configurações & Gestão Multi-Lojas
     Route::get('/configuracoes/loja', [StoreSettingsController::class, 'edit'])->name('settings.store');
