@@ -163,6 +163,10 @@ class DatabaseSeeder extends Seeder
                     'category_id' => $cat?->id,
                     'name' => $prodData['name'],
                     'price' => $prodData['price'],
+                    'original_price' => in_array($prodData['name'], ['Calça cargo', 'Vestido xadrez', 'Vestido xadrez gola redonda', 'Corset Shein', 'Macacão gringo', 'Body Canelado Premium', 'Shorts Saia Cirrê', 'Tricô Modal Luxo'])
+                        ? round($prodData['price'] * 1.25, 2)
+                        : null,
+                    'image_url' => $prodData['image'] ?? null,
                     'status' => 'active',
                 ],
             );
