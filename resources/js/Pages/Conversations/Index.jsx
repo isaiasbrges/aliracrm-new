@@ -204,7 +204,16 @@ export default function ConversationsIndex({
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                    <Link
+                        href="/funil"
+                        className="inline-flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all shadow-xs shrink-0"
+                        title="Ir para o Funil de Vendas e Disparos em Massa"
+                    >
+                        <Zap className="w-4 h-4 text-indigo-600 fill-indigo-500" />
+                        <span>Disparos & Anti-Ban</span>
+                    </Link>
+
                     <button
                         onClick={() => setIsNewChatModalOpen(true)}
                         className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 transition-all transform active:scale-95 shrink-0"

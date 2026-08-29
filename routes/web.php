@@ -22,6 +22,10 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/loja/{slug}/login', [AuthController::class, 'store'])->middleware('throttle:login')->name('store.login.store');
 });
 
+// Catálogo Digital Público (Aberto para Clientes no WhatsApp / Instagram)
+Route::get('/catalogo', [\App\Http\Controllers\PublicCatalogController::class, 'index'])->name('catalog.public.default');
+Route::get('/loja/{slug}/catalogo', [\App\Http\Controllers\PublicCatalogController::class, 'index'])->name('catalog.public');
+
 // Acesso Direto à Loja pelo Link: /loja/{slug}
 Route::get('/loja/{slug}', function (Request $request, string $slug) {
     $store = Store::query()->where('slug', $slug)->where('active', true)->firstOrFail();
@@ -67,6 +71,8 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::post('/atendimentos/iniciar', [ConversationController::class, 'startWithCustomer'])->name('conversations.start');
     Route::post('/atendimentos/{conversation}/mensagens', [ConversationController::class, 'storeMessage'])->name('conversations.messages.store');
     Route::patch('/atendimentos/{conversation}/status', [ConversationController::class, 'updateStatus'])->name('conversations.status.update');
+    Route::get('/api/whatsapp/status', [WhatsAppStatusController::class, 'getStatus'])->name('whatsapp.status');
+    Route::get('/api/whatsapp/qrcode', [WhatsAppStatusController::class, 'getQrCode'])->name('whatsapp.qrcode');
 
     // Clientes & Visão 360°
     Route::get('/clientes', [CustomerController::class, 'index'])->name('customers.index');
