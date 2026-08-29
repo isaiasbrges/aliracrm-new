@@ -6,79 +6,80 @@ import {
     ArrowRight, MessageCircle, AlertCircle, CheckCircle2,
     Clock, HeartHandshake, History, CalendarDays, Zap,
     Send, Sparkles, Check, X, Phone, Tag, DollarSign,
-    Users, ChevronRight, MessageSquare
+    Users, ChevronRight, MessageSquare, ShieldCheck,
+    Activity, AlertTriangle, Info, HelpCircle
 } from 'lucide-react';
 
-/* ── Mensagens Prontas por Estágio do Funil ── */
+/* ── Mensagens Prontas Inteligentes com Spintax Anti-Spam ({Olá|Oi|Oie}) ── */
 const STAGE_TEMPLATES = {
     lead: [
         {
-            title: 'Primeiro Contato & Boas-Vindas',
-            text: 'Olá {cliente}! Tudo bem? Vi seu interesse na nossa coleção e separei opções lindas que combinam perfeitamente com você. Gostaria de dar uma olhadinha?',
+            title: 'Primeiro Contato & Boas-Vindas (Spintax Inteligente)',
+            text: '{Olá|Oi|Oie} {cliente}! {Tudo bem?|Como você está?|Tudo certinho por aí?} Vi seu interesse na nossa coleção e separei opções lindas que combinam com seu estilo. Gostaria de dar uma olhadinha?',
             advanceTo: 'contacted',
         },
         {
             title: 'Apresentação de Looks Exclusivos',
-            text: 'Oi {cliente}! Acabamos de receber novidades exclusivas na loja! Posso te enviar algumas fotos dos lançamentos?',
+            text: '{Oi|Olá} {cliente}! {Acabaram de chegar peças maravilhosas|Temos novidades fresquinhas na loja}! Posso te enviar algumas fotos dos lançamentos exclusivos?',
             advanceTo: 'contacted',
         },
     ],
     contacted: [
         {
             title: 'Follow-up de Interesse',
-            text: 'Olá {cliente}! Passando para saber se você conseguiu ver as peças que te enviei. Teve algum look que chamou mais sua atenção?',
+            text: '{Olá|Oi} {cliente}! {Passando para saber se conseguiu ver as peças|Queria saber o que achou dos looks que te enviei}! Teve algum modelo que chamou mais sua atenção?',
             advanceTo: 'proposal',
         },
         {
             title: 'Consultoria de Estilo & Tamanhos',
-            text: 'Oi {cliente}! Temos essa peça nos tamanhos P, M e G. Se quiser, me passe suas medidas que te ajudo a escolher o caimento ideal!',
+            text: '{Oi|Olá} {cliente}! Temos essa peça nos tamanhos P, M e G. {Se quiser, me passe suas medidas|Me informe como você gosta do caimento} que te ajudo a escolher a opção perfeita!',
             advanceTo: 'proposal',
         },
     ],
     proposal: [
         {
             title: 'Acompanhamento de Proposta / Orçamento',
-            text: 'Olá {cliente}! Seu orçamento no valor de {valor} para {titulo} está prontinho com condições especiais válidas para hoje!',
+            text: '{Olá|Oi} {cliente}! Seu orçamento no valor de {valor} para {titulo} está prontinho com condições especiais válidas para hoje! {Podemos fechar?|Gostaria de garantir sua reserva?}',
             advanceTo: 'negotiation',
         },
         {
             title: 'Condição Especial por Tempo Limitado',
-            text: 'Oi {cliente}! Consigo segurar o valor de {valor} com 5% de desconto no PIX ou até 6x sem juros no cartão se fecharmos hoje. O que acha?',
+            text: '{Oi|Olá} {cliente}! Consigo segurar o valor de {valor} com 5% de desconto no PIX ou até 6x sem juros no cartão se fecharmos hoje. O que acha?',
             advanceTo: 'negotiation',
         },
     ],
     negotiation: [
         {
             title: 'Cupom de Fechamento / Frete Cortesia',
-            text: 'Oi {cliente}! Para fecharmos agora seu pedido ({titulo}), liberei o frete cortesia para seu endereço! Posso gerar seu link de pagamento?',
+            text: '{Oi|Olá} {cliente}! Para fecharmos agora seu pedido ({titulo}), liberei o frete cortesia para seu endereço! Posso gerar seu link de pagamento?',
             advanceTo: 'won',
         },
         {
             title: 'Chave PIX para Finalizar',
-            text: 'Olá {cliente}! Podemos finalizar seu pedido de {valor}? Me confirme que já gero sua chave PIX com desconto!',
+            text: '{Olá|Oi} {cliente}! Podemos finalizar seu pedido de {valor}? Me confirme que já gero sua chave PIX com desconto especial!',
             advanceTo: 'won',
         },
     ],
     won: [
         {
             title: 'Agradecimento & Pós-Venda',
-            text: 'Olá {cliente}! Muito obrigado pela confiança! Seu pedido já está sendo preparado com muito carinho. Logo mais envio o rastreio! 💖',
+            text: '{Olá|Oi} {cliente}! Muito obrigado pela confiança! Seu pedido já está sendo preparado com muito carinho. Logo mais envio seu código de rastreio! 💖',
             advanceTo: '',
         },
     ],
     reactivation: [
         {
             title: 'Reativação com Saudade & Novidades',
-            text: 'Oi {cliente}, estamos com saudades de você aqui na loja! Chegaram novidades incríveis e separei um presente de boas-vindas para sua próxima visita. Dá uma olhada!',
+            text: '{Oi|Olá} {cliente}, estamos com saudades de você aqui na {loja}! Chegaram novidades incríveis e separei um presente de boas-vindas para sua próxima visita. Dá uma olhada!',
         },
         {
-            title: 'Cupom Exclusivo de Retorno',
-            text: 'Olá {cliente}! Preparamos um cupom especial de 10% OFF para você matar a saudade dos nossos looks. Válido até este sábado!',
+            title: 'Cupom Exclusivo de Retorno (10% OFF)',
+            text: '{Olá|Oi} {cliente}! Preparamos um cupom especial de 10% OFF para você matar a saudade dos nossos looks. Válido para usar até este sábado!',
         },
     ],
 };
 
-export default function DealsIndex({ columns, totalPipelineValue, customers, recencySegments }) {
+export default function DealsIndex({ columns, totalPipelineValue, customers, recencySegments, chipHealth }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [draggingDealId, setDraggingDealId] = useState(null);
     const [activeTab, setActiveTab] = useState('kanban');
@@ -351,13 +352,13 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
     return (
         <AppLayout title="Funil de Vendas (Kanban)">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
                 <div>
                     <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-slate-900 tracking-tight flex items-center gap-2">
                         Funil de Vendas & Disparos
                     </h1>
                     <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                        Gerencie oportunidades e faça disparos de WhatsApp com mensagens prontas por etapa.
+                        Gerencie oportunidades e faça disparos inteligentes com proteção anti-ban por etapa.
                     </p>
                 </div>
 
@@ -378,6 +379,72 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                     </button>
                 </div>
             </div>
+
+            {/* ── PAINEL INTELIGENTE: SAÚDE DO CHIP & ANTI-BAN ── */}
+            {chipHealth && (
+                <div className="mb-5 p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold shrink-0 ${
+                            chipHealth.status === 'safe'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : chipHealth.status === 'warning'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-rose-100 text-rose-700'
+                        }`}>
+                            <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-xs text-slate-900 font-['Space_Grotesk']">
+                                    Saúde do Chip WhatsApp (Anti-Ban Ativo)
+                                </span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    chipHealth.status === 'safe'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : chipHealth.status === 'warning'
+                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                }`}>
+                                    {chipHealth.status === 'safe' ? '🟢 Zona Segura' : chipHealth.status === 'warning' ? '🟡 Atenção' : '🛑 Limite Diário'}
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                                Disparos hoje: <b>{chipHealth.dispatches_today}</b> de {chipHealth.daily_limit} (restam {chipHealth.remaining}) · Protegendo contra bloqueios da Meta.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0">
+                        {/* Progress Bar */}
+                        <div className="w-36 hidden sm:block">
+                            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                                <span>Cota Diária</span>
+                                <b>{chipHealth.percentage}%</b>
+                            </div>
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                        chipHealth.status === 'safe'
+                                            ? 'bg-emerald-500'
+                                            : chipHealth.status === 'warning'
+                                            ? 'bg-amber-500'
+                                            : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${chipHealth.percentage}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Status Horário Comercial */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/70 text-[11px]">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-slate-600 font-medium">
+                                {chipHealth.current_hour} · {chipHealth.is_commercial_hour ? 'Horário Comercial 🟢' : 'Fora de Horário ⚠️'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Navigation Tabs */}
             <div className="flex items-center gap-2 border-b border-slate-200 mb-6">
@@ -413,7 +480,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                             key={stageKey}
                             onDragOver={onDragOver}
                             onDrop={(e) => onDrop(e, stageKey)}
-                            className="min-w-[290px] w-[290px] max-w-[290px] bg-slate-50/80 rounded-3xl p-3.5 border border-slate-200/70 flex flex-col max-h-[calc(100vh-230px)] shrink-0"
+                            className="min-w-[290px] w-[290px] max-w-[290px] bg-slate-50/80 rounded-3xl p-3.5 border border-slate-200/70 flex flex-col max-h-[calc(100vh-270px)] shrink-0"
                         >
                             {/* Column Header */}
                             <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200/60">
@@ -439,7 +506,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                 <button
                                     onClick={() => openBulkDispatch(stageKey, col)}
                                     className="mb-3 w-full py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
-                                    title="Enviar mensagem para todos os leads desta etapa"
+                                    title="Enviar mensagem inteligente para todos os leads desta etapa"
                                 >
                                     <Zap className="w-3 h-3 text-emerald-600 fill-emerald-500" />
                                     Disparar para os {col.count} Leads
@@ -642,8 +709,9 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                         <form onSubmit={handleSingleDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto">
                             {/* Templates Sugeridos para esta Etapa */}
                             <div>
-                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                                    Sugestões Prontas para esta Etapa:
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                    Sugestões Inteligentes para esta Etapa:
                                 </label>
                                 <div className="space-y-2">
                                     {(STAGE_TEMPLATES[selectedDealForDispatch.stage] || STAGE_TEMPLATES.lead).map((tpl, i) => (
@@ -741,10 +809,10 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                        Disparo em Massa: {selectedColumnForBulk.label}
+                                        Disparo em Massa Inteligente: {selectedColumnForBulk.label}
                                     </h3>
                                     <p className="text-xs text-slate-500">
-                                        Disparo para {selectedColumnForBulk.deals.length} oportunidades com WhatsApp
+                                        Disparo para {selectedColumnForBulk.deals.length} oportunidades com proteção Spintax
                                     </p>
                                 </div>
                             </div>
@@ -757,6 +825,14 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                         </div>
 
                         <form onSubmit={handleBulkDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto">
+                            {/* Alerta Anti-Ban Spintax */}
+                            <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 text-xs text-indigo-900 flex items-start gap-2.5">
+                                <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <b>Proteção Anti-Ban Ativada:</b> O sistema varia automaticamente as saudações com Spintax como <code>{"{Olá|Oi|Oie}"}</code> para que nenhum cliente receba mensagens idênticas.
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
                                     Template da Mensagem (com Tags Dinâmicas) *
@@ -768,11 +844,13 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                     required
                                     className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none leading-relaxed"
                                 />
-                                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                                <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] text-slate-500">
                                     <span className="font-bold">Tags disponíveis:</span>
                                     <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{cliente}"}</code>
                                     <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{valor}"}</code>
                                     <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{titulo}"}</code>
+                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{loja}"}</code>
+                                    <code className="bg-indigo-100 px-1 py-0.5 rounded text-indigo-700 font-bold">{"{Olá|Oi|Oie}"} (Spintax)</code>
                                 </div>
                             </div>
 
@@ -845,7 +923,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                         <form onSubmit={handleReactivationSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
-                                    Mensagem de Reconquista *
+                                    Mensagem de Reconquista (com Spintax) *
                                 </label>
                                 <textarea
                                     value={reactivationForm.data.message}

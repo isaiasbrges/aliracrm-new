@@ -106,11 +106,33 @@ class DealController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'whatsapp']);
 
+        // ── Inteligência Anti-Ban & Saúde do Chip ──────────────────────
+        $dispatchesToday = Message::query()
+            ->where('organization_id', $organizationId)
+            ->where('direction', 'outbound')
+            ->whereDate('created_at', today())
+            ->count();
+
+        $dailyLimit = 200; // Limite padrão seguro de proteção diária
+        $hour = (int) now()->format('H');
+        $isCommercialHour = ($hour >= 8 && $hour < 21);
+
+        $chipHealth = [
+            'dispatches_today'   => $dispatchesToday,
+            'daily_limit'        => $dailyLimit,
+            'remaining'          => max(0, $dailyLimit - $dispatchesToday),
+            'percentage'         => min(100, (int) round(($dispatchesToday / $dailyLimit) * 100)),
+            'status'             => $dispatchesToday < ($dailyLimit * 0.7) ? 'safe' : ($dispatchesToday < $dailyLimit ? 'warning' : 'limit_reached'),
+            'is_commercial_hour' => $isCommercialHour,
+            'current_hour'       => now()->format('H:i'),
+        ];
+
         return Inertia::render('Deals/Index', compact(
             'columns',
             'totalPipelineValue',
             'customers',
-            'recencySegments'
+            'recencySegments',
+            'chipHealth'
         ));
     }
 
@@ -193,6 +215,12 @@ class DealController extends Controller
             abort(403);
         }
 
+        // Verificação de Limite Diário de Segurança
+        $todayCount = Message::where('organization_id', $organizationId)->where('direction', 'outbound')->whereDate('created_at', today())->count();
+        if ($todayCount >= 200) {
+            return back()->withErrors(['message' => 'Limite diário de segurança atingido (200 disparos/dia) para proteger a saúde do seu chip WhatsApp. O limite reinicia à meia-noite.']);
+        }
+
         $data = $request->validate([
             'message' => ['required', 'string', 'max:5000'],
             'advance_stage' => ['nullable', 'string', 'in:contacted,proposal,negotiation,won,lost'],
@@ -202,6 +230,9 @@ class DealController extends Controller
         if (!$customer || empty($customer->whatsapp)) {
             return back()->withErrors(['message' => 'Esta oportunidade não possui cliente ou WhatsApp vinculado.']);
         }
+
+        // Processar Spintax inteligente
+        $finalMessage = $this->parseSpintax($data['message']);
 
         // Criar ou localizar conversa no CRM
         $conversation = Conversation::firstOrCreate(
@@ -216,7 +247,7 @@ class DealController extends Controller
                 'status'               => 'open',
                 'priority'             => 'normal',
                 'subject'              => 'Atendimento · ' . $deal->title,
-                'last_message_preview' => $data['message'],
+                'last_message_preview' => $finalMessage,
                 'last_message_at'      => now(),
             ]
         );
@@ -227,7 +258,7 @@ class DealController extends Controller
             'conversation_id' => $conversation->id,
             'direction'       => 'outbound',
             'type'            => 'text',
-            'body'            => $data['message'],
+            'body'            => $finalMessage,
             'status'          => 'sent',
             'from_phone'      => 'store',
             'to_phone'        => $customer->whatsapp,
@@ -235,7 +266,7 @@ class DealController extends Controller
         ]);
 
         $conversation->update([
-            'last_message_preview' => $data['message'],
+            'last_message_preview' => $finalMessage,
             'last_message_at'      => now(),
             'status'               => 'open',
         ]);
@@ -247,20 +278,25 @@ class DealController extends Controller
 
         // Disparo real via Evolution API
         $instanceName = $store->slug ?? 'dyvinus';
-        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $data['message']);
+        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $finalMessage);
 
         return redirect()->route('deals.index')
             ->with('success', "WhatsApp disparado com sucesso para {$customer->name}!");
     }
 
     /**
-     * Disparo em massa para múltiplos cards de uma coluna do Funil
+     * Disparo em massa para múltiplos cards de uma coluna do Funil (com Spintax e Throttling)
      */
     public function bulkSendWhatsApp(Request $request): RedirectResponse
     {
         $organizationId = $request->user()->organization_id;
         $store = $request->attributes->get('store');
         $storeId = $store->id;
+
+        $todayCount = Message::where('organization_id', $organizationId)->where('direction', 'outbound')->whereDate('created_at', today())->count();
+        if ($todayCount >= 200) {
+            return back()->withErrors(['message' => 'Limite diário de segurança atingido (200 disparos/dia) para proteger a saúde do seu chip WhatsApp.']);
+        }
 
         $data = $request->validate([
             'deal_ids' => ['required', 'array', 'min:1'],
@@ -280,6 +316,10 @@ class DealController extends Controller
         $sentCount = 0;
 
         foreach ($deals as $deal) {
+            if (($todayCount + $sentCount) >= 200) {
+                break; // Interrompe para proteger chip
+            }
+
             $customer = $deal->customer;
             if (!$customer || empty($customer->whatsapp)) {
                 continue;
@@ -288,13 +328,17 @@ class DealController extends Controller
             $firstName = explode(' ', trim($customer->name))[0] ?: 'Cliente';
             $formattedValue = 'R$ ' . number_format($deal->value, 2, ',', '.');
 
+            // 1. Substituir variáveis
             $personalizedMessage = str_replace(
-                ['{cliente}', '{nome}', '{valor}', '{titulo}'],
-                [$firstName, $firstName, $formattedValue, $deal->title],
+                ['{cliente}', '{nome}', '{primeiro_nome}', '{valor}', '{titulo}', '{loja}'],
+                [$firstName, $firstName, $firstName, $formattedValue, $deal->title, $store->name],
                 $data['message_template']
             );
 
-            // Criar conversa
+            // 2. Processar Spintax (ex: {Olá|Oi|Oie} -> varia aleatoriamente para cada cliente)
+            $personalizedMessage = $this->parseSpintax($personalizedMessage);
+
+            // 3. Criar ou atualizar conversa
             $conversation = Conversation::firstOrCreate(
                 [
                     'organization_id'  => $organizationId,
@@ -339,7 +383,7 @@ class DealController extends Controller
         }
 
         return redirect()->route('deals.index')
-            ->with('success', "Disparo concluído com sucesso para {$sentCount} oportunidades!");
+            ->with('success', "Disparo inteligente concluído com sucesso para {$sentCount} oportunidades!");
     }
 
     /**
@@ -355,6 +399,11 @@ class DealController extends Controller
             abort(403);
         }
 
+        $todayCount = Message::where('organization_id', $organizationId)->where('direction', 'outbound')->whereDate('created_at', today())->count();
+        if ($todayCount >= 200) {
+            return back()->withErrors(['message' => 'Limite diário de segurança atingido (200 disparos/dia) para proteger seu chip.']);
+        }
+
         $data = $request->validate([
             'message' => ['required', 'string', 'max:5000'],
         ]);
@@ -362,6 +411,8 @@ class DealController extends Controller
         if (empty($customer->whatsapp)) {
             return back()->withErrors(['message' => 'Cliente sem WhatsApp cadastrado.']);
         }
+
+        $finalMessage = $this->parseSpintax($data['message']);
 
         $conversation = Conversation::firstOrCreate(
             [
@@ -375,7 +426,7 @@ class DealController extends Controller
                 'status'               => 'open',
                 'priority'             => 'normal',
                 'subject'              => 'Reativação · ' . $customer->name,
-                'last_message_preview' => $data['message'],
+                'last_message_preview' => $finalMessage,
                 'last_message_at'      => now(),
             ]
         );
@@ -385,7 +436,7 @@ class DealController extends Controller
             'conversation_id' => $conversation->id,
             'direction'       => 'outbound',
             'type'            => 'text',
-            'body'            => $data['message'],
+            'body'            => $finalMessage,
             'status'          => 'sent',
             'from_phone'      => 'store',
             'to_phone'        => $customer->whatsapp,
@@ -393,15 +444,30 @@ class DealController extends Controller
         ]);
 
         $conversation->update([
-            'last_message_preview' => $data['message'],
+            'last_message_preview' => $finalMessage,
             'last_message_at'      => now(),
             'status'               => 'open',
         ]);
 
         $instanceName = $store->slug ?? 'dyvinus';
-        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $data['message']);
+        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $finalMessage);
 
         return redirect()->route('deals.index')
             ->with('success', "Mensagem de reativação enviada para {$customer->name}!");
+    }
+
+    /**
+     * Parser Spintax: Transforma {Olá|Oi|Oie} em uma das opções aleatoriamente
+     */
+    protected function parseSpintax(string $text): string
+    {
+        return (string) preg_replace_callback('/\{([^{}]+)\}/', function ($matches) {
+            $options = explode('|', $matches[1]);
+            if (count($options) <= 1) {
+                // Se for tag normal sem pipe, mantém como está
+                return $matches[0];
+            }
+            return $options[array_rand($options)];
+        }, $text);
     }
 }
