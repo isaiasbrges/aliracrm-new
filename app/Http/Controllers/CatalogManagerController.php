@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Store;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -53,18 +54,27 @@ class CatalogManagerController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
 
+        $serverHost = parse_url(config('app.url') ?: 'https://aliracrm.site', PHP_URL_HOST) ?: 'aliracrm.site';
+        $serverIp = @gethostbyname($serverHost) ?: '185.173.111.45';
+
         return Inertia::render('Catalog/Manager', [
             'store' => [
-                'id'           => $store->id,
-                'name'         => $store->name,
-                'slug'         => $store->slug,
-                'accent_color' => $store->accent_color ?? '#ff007f',
-                'logo_url'     => $store->logo_url,
-                'whatsapp'     => $store->whatsapp ?? '5511999999999',
+                'id'                   => $store->id,
+                'name'                 => $store->name,
+                'slug'                 => $store->slug,
+                'accent_color'         => $store->accent_color ?? '#ff007f',
+                'logo_url'             => $store->logo_url,
+                'custom_domain'        => $store->custom_domain,
+                'custom_domain_status' => $store->custom_domain_status ?? 'pending',
+                'whatsapp'             => $store->whatsapp ?? '5511999999999',
             ],
             'products'   => $products,
             'categories' => $categories,
             'live_url'   => url('/catalogo'),
+            'dns_info'   => [
+                'server_ip'   => $serverIp,
+                'server_host' => $serverHost,
+            ],
         ]);
     }
 
@@ -86,8 +96,14 @@ class CatalogManagerController extends Controller
 
         $imageUrl = $data['image_url'] ?? null;
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store("products/{$store->id}", 'public');
-            $imageUrl = Storage::disk('public')->url($path);
+            $file = $request->file('image');
+            $filename = 'product_' . $store->id . '_' . time() . '_' . Str::random(5) . '.' . $file->getClientOriginalExtension();
+            $dest = public_path('uploads/products');
+            if (!file_exists($dest)) {
+                @mkdir($dest, 0777, true);
+            }
+            $file->move($dest, $filename);
+            $imageUrl = '/uploads/products/' . $filename;
         }
 
         $sku = 'LOOK-' . Str::upper(Str::random(6));
@@ -143,8 +159,14 @@ class CatalogManagerController extends Controller
 
         $imageUrl = $data['image_url'] ?? $product->image_url;
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store("products/{$store->id}", 'public');
-            $imageUrl = Storage::disk('public')->url($path);
+            $file = $request->file('image');
+            $filename = 'product_' . $store->id . '_' . time() . '_' . Str::random(5) . '.' . $file->getClientOriginalExtension();
+            $dest = public_path('uploads/products');
+            if (!file_exists($dest)) {
+                @mkdir($dest, 0777, true);
+            }
+            $file->move($dest, $filename);
+            $imageUrl = '/uploads/products/' . $filename;
         }
 
         $product->update([
@@ -182,14 +204,14 @@ class CatalogManagerController extends Controller
             'name' => ['required', 'string', 'max:100'],
         ]);
 
-        $slug = Str::slug($data['name']);
+        Category::create([
+            'organization_id' => $organizationId,
+            'name'            => $data['name'],
+            'slug'            => Str::slug($data['name']) . '-' . Str::random(4),
+            'active'          => true,
+        ]);
 
-        Category::firstOrCreate(
-            ['organization_id' => $organizationId, 'slug' => $slug],
-            ['name' => $data['name']]
-        );
-
-        return redirect()->route('catalog.manager.index')->with('success', "Categoria '{$data['name']}' adicionada!");
+        return redirect()->route('catalog.manager.index')->with('success', "Categoria '{$data['name']}' criada com sucesso!");
     }
 
     public function destroyCategory(Request $request, Category $category): RedirectResponse
@@ -230,19 +252,88 @@ class CatalogManagerController extends Controller
             'accent_color' => $rawColor,
         ];
 
+        $logoUrl = $store->logo_url;
+
         if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store("logos/{$store->id}", 'public');
-            $data['logo_url'] = Storage::disk('public')->url($path);
+            $file = $request->file('logo');
+            $filename = 'logo_' . $store->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $destinationPath = public_path('uploads/logos');
+            if (!file_exists($destinationPath)) {
+                @mkdir($destinationPath, 0777, true);
+            }
+            $file->move($destinationPath, $filename);
+            $logoUrl = '/uploads/logos/' . $filename;
         } elseif ($request->filled('logo_url')) {
-            $data['logo_url'] = $request->input('logo_url');
+            $logoUrl = $request->input('logo_url');
         }
 
         if ($request->boolean('remove_logo')) {
-            $data['logo_url'] = null;
+            $logoUrl = null;
         }
 
-        $store->update($data);
+        $store->name = $data['name'];
+        $store->accent_color = $data['accent_color'];
+        $store->logo_url = $logoUrl;
+        $store->save();
 
         return redirect()->route('catalog.manager.index')->with('success', 'Logo e cores da loja atualizados com sucesso!');
+    }
+
+    public function updateCustomDomain(Request $request): RedirectResponse
+    {
+        $store = $request->attributes->get('store');
+
+        $data = $request->validate([
+            'custom_domain' => ['nullable', 'string', 'max:190'],
+        ]);
+
+        $domain = trim(strtolower((string) ($data['custom_domain'] ?? '')));
+        $domain = preg_replace('#^https?://#', '', $domain);
+        $domain = rtrim($domain, '/');
+
+        $store->custom_domain = !empty($domain) ? $domain : null;
+        $store->custom_domain_status = !empty($domain) ? 'pending' : 'none';
+        $store->save();
+
+        return redirect()->route('catalog.manager.index')
+            ->with('success', 'Domínio personalizado salvo com sucesso! Configure os registros DNS conforme o tutorial abaixo.');
+    }
+
+    public function verifyCustomDomain(Request $request): JsonResponse
+    {
+        $store = $request->attributes->get('store');
+        $domain = $store->custom_domain;
+
+        if (empty($domain)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nenhum domínio configurado para verificar.',
+            ]);
+        }
+
+        $records = @dns_get_record($domain, DNS_A + DNS_CNAME);
+        $ip = @gethostbyname($domain);
+
+        $serverHost = parse_url(config('app.url') ?: 'https://aliracrm.site', PHP_URL_HOST) ?: 'aliracrm.site';
+        $serverIp = @gethostbyname($serverHost) ?: '185.173.111.45';
+
+        $isPointing = ($ip === $serverIp) || ($ip !== $domain && !empty($ip));
+
+        if ($isPointing) {
+            $store->custom_domain_status = 'active';
+            $store->save();
+        }
+
+        return response()->json([
+            'success'     => $isPointing,
+            'status'      => $isPointing ? 'active' : 'pending',
+            'domain'      => $domain,
+            'resolved_ip' => $ip,
+            'server_ip'   => $serverIp,
+            'records'     => $records ?: [],
+            'message'     => $isPointing
+                ? "🟢 Domínio {$domain} apontado com sucesso para o servidor!"
+                : "🟡 O domínio {$domain} ainda não foi propagado ou não está apontando para o servidor.",
+        ]);
     }
 }

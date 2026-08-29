@@ -23,6 +23,13 @@ import {
     Globe,
     ArrowUpRight,
     Store as StoreIcon,
+    Copy,
+    RefreshCw,
+    AlertCircle,
+    Server,
+    ShieldCheck,
+    HelpCircle,
+    Info,
 } from 'lucide-react';
 
 const PRESET_COLORS = [
@@ -37,8 +44,13 @@ const PRESET_COLORS = [
     { label: 'Azul Royal',            value: '#2563eb' },
 ];
 
-export default function CatalogManager({ store, products, categories, live_url }) {
-    const [activeTab, setActiveTab] = useState('products'); // 'products' | 'categories' | 'branding'
+export default function CatalogManager({ store, products, categories, live_url, dns_info }) {
+    // Parâmetro de URL ou padrão
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialTab = searchParams.get('tab') || 'products';
+
+    const [activeTab, setActiveTab] = useState(initialTab); // 'products' | 'categories' | 'branding' | 'domain'
+    const [activeDnsProvider, setActiveDnsProvider] = useState('registrobr'); // 'registrobr' | 'cloudflare' | 'hostinger' | 'godaddy'
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
 
@@ -46,6 +58,11 @@ export default function CatalogManager({ store, products, categories, live_url }
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+    // Teste de DNS
+    const [verifyingDns, setVerifyingDns] = useState(false);
+    const [dnsCheckResult, setDnsCheckResult] = useState(null);
+    const [copiedField, setCopiedField] = useState(null);
 
     // Form de Produto / Look
     const {
@@ -93,16 +110,34 @@ export default function CatalogManager({ store, products, categories, live_url }
         remove_logo: false,
     });
 
+    // Form de Domínio Próprio
+    const {
+        data: domainData,
+        setData: setDomainData,
+        post: postDomain,
+        processing: savingDomain,
+    } = useForm({
+        custom_domain: store.custom_domain || '',
+    });
+
     const [logoPreview, setLogoPreview] = useState(store.logo_url || null);
     const [prodImagePreview, setProdImagePreview] = useState(null);
     const fileInputRef = useRef(null);
-    const prodFileInputRef = useRef(null);
+
+    const serverHost = dns_info?.server_host || 'aliracrm.site';
+    const serverIp = dns_info?.server_ip || '185.173.111.45';
 
     const formatCurrency = (val) => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL',
         }).format(val || 0);
+    };
+
+    const copyToClipboard = (text, fieldName) => {
+        navigator.clipboard.writeText(text);
+        setCopiedField(fieldName);
+        setTimeout(() => setCopiedField(null), 2500);
     };
 
     // Abrir Modal de Novo Look
@@ -181,40 +216,73 @@ export default function CatalogManager({ store, products, categories, live_url }
         }
     };
 
-    const handleProdImageFileChange = (e) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setProdData('image', file);
-            setProdImagePreview(URL.createObjectURL(file));
+    const handleSaveBranding = (e) => {
+        e.preventDefault();
+        postBrand('/catalogo/branding', {
+            forceFormData: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleSaveDomain = (e) => {
+        e.preventDefault();
+        postDomain('/catalogo/dominio', {
+            preserveScroll: true,
+        });
+    };
+
+    const handleVerifyDns = async () => {
+        setVerifyingDns(true);
+        setDnsCheckResult(null);
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const res = await fetch('/catalogo/dominio/verificar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken || '',
+                },
+            });
+            const data = await res.json();
+            setDnsCheckResult(data);
+        } catch (e) {
+            setDnsCheckResult({
+                success: false,
+                message: 'Erro ao se comunicar com o verificador de DNS.',
+            });
+        } finally {
+            setVerifyingDns(false);
         }
     };
 
-    const handleSaveBranding = (e) => {
-        e.preventDefault();
-        postBrand('/catalogo/branding');
-    };
-
-    // Filtragem dos looks
+    // Filtrar Produtos
     const filteredProducts = products.filter((p) => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCat = selectedCategoryFilter === 'all' || p.category_id === Number(selectedCategoryFilter) || p.category_name === selectedCategoryFilter;
+        const matchesSearch =
+            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.sku.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCat =
+            selectedCategoryFilter === 'all' ||
+            String(p.category_id) === String(selectedCategoryFilter);
         return matchesSearch && matchesCat;
     });
 
+    const currentBrandColor = store.accent_color || '#ff007f';
+
     return (
-        <AppLayout title="Gestor do Catálogo">
-            {/* Header da Página */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <AppLayout title="Gerenciador do Catálogo & Looks">
+            {/* ── Top Bar ── */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-slate-900 tracking-tight flex items-center gap-2">
-                        Gestor do Catálogo Online
-                        <span className="p-1 rounded-md bg-pink-100 text-pink-700 text-xs font-sans font-bold flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5" />
-                            Vitrine Digital
+                    <h1 className="text-xl sm:text-2xl font-bold font-['Space_Grotesk'] text-slate-900 flex items-center gap-2.5">
+                        <Sparkles className="w-6 h-6" style={{ color: currentBrandColor }} />
+                        Gerenciador do Catálogo
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-pink-100 text-pink-700">
+                            Vitrine Ativa
                         </span>
                     </h1>
-                    <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                        Adicione looks, edite preços, gerencie categorias e personalize a logo e as cores do catálogo público.
+                    <p className="text-xs text-slate-500 mt-1">
+                        Gerencie looks, fotos, categorias da barra lateral, identidade visual e seu próprio domínio.
                     </p>
                 </div>
 
@@ -234,7 +302,8 @@ export default function CatalogManager({ store, products, categories, live_url }
 
                     <button
                         onClick={handleOpenCreateProduct}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#ff007f] hover:bg-[#e11d48] text-white text-xs font-bold shadow-md shadow-pink-600/20 transition active:scale-95"
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition active:scale-95"
+                        style={{ background: currentBrandColor }}
                     >
                         <Plus className="w-4 h-4" />
                         + Adicionar Look
@@ -243,14 +312,15 @@ export default function CatalogManager({ store, products, categories, live_url }
             </div>
 
             {/* Abas de Navegação */}
-            <div className="flex items-center gap-2 border-b border-slate-200 mb-6 text-xs sm:text-sm font-semibold">
+            <div className="flex items-center gap-2 border-b border-slate-200 mb-6 text-xs sm:text-sm font-semibold overflow-x-auto">
                 <button
                     onClick={() => setActiveTab('products')}
-                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 ${
+                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'products'
-                            ? 'border-[#ff007f] text-[#ff007f] font-bold'
+                            ? 'font-bold border-current'
                             : 'border-transparent text-slate-500 hover:text-slate-800'
                     }`}
+                    style={activeTab === 'products' ? { color: currentBrandColor } : {}}
                 >
                     <ShoppingBag className="w-4 h-4" />
                     <span>Looks do Catálogo ({products.length})</span>
@@ -258,26 +328,44 @@ export default function CatalogManager({ store, products, categories, live_url }
 
                 <button
                     onClick={() => setActiveTab('categories')}
-                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 ${
+                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'categories'
-                            ? 'border-[#ff007f] text-[#ff007f] font-bold'
+                            ? 'font-bold border-current'
                             : 'border-transparent text-slate-500 hover:text-slate-800'
                     }`}
+                    style={activeTab === 'categories' ? { color: currentBrandColor } : {}}
                 >
                     <Tag className="w-4 h-4" />
-                    <span>Categorias da Barra Lateral ({categories.length})</span>
+                    <span>Categorias ({categories.length})</span>
                 </button>
 
                 <button
                     onClick={() => setActiveTab('branding')}
-                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 ${
+                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
                         activeTab === 'branding'
-                            ? 'border-[#ff007f] text-[#ff007f] font-bold'
+                            ? 'font-bold border-current'
                             : 'border-transparent text-slate-500 hover:text-slate-800'
                     }`}
+                    style={activeTab === 'branding' ? { color: currentBrandColor } : {}}
                 >
                     <Palette className="w-4 h-4" />
                     <span>Logo & Cores da Loja</span>
+                </button>
+
+                <button
+                    onClick={() => setActiveTab('domain')}
+                    className={`pb-3 px-3 transition flex items-center gap-2 border-b-2 whitespace-nowrap ${
+                        activeTab === 'domain'
+                            ? 'font-bold border-current'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                    style={activeTab === 'domain' ? { color: currentBrandColor } : {}}
+                >
+                    <Globe className="w-4 h-4 text-emerald-500" />
+                    <span>Domínio Próprio & DNS</span>
+                    {store.custom_domain && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                    )}
                 </button>
             </div>
 
@@ -293,7 +381,7 @@ export default function CatalogManager({ store, products, categories, live_url }
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 placeholder="Buscar por nome ou SKU..."
-                                className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
+                                className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition"
                             />
                         </div>
 
@@ -302,7 +390,7 @@ export default function CatalogManager({ store, products, categories, live_url }
                             <select
                                 value={selectedCategoryFilter}
                                 onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                                className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-[#ff007f] transition w-full sm:w-auto"
+                                className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none transition w-full sm:w-auto"
                             >
                                 <option value="all">Todas as Categorias</option>
                                 {categories.map((c) => (
@@ -318,84 +406,71 @@ export default function CatalogManager({ store, products, categories, live_url }
                     <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-100">
-                                    <tr>
+                                <thead>
+                                    <tr className="bg-slate-50/80 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200">
                                         <th className="py-3 px-4">Foto</th>
                                         <th className="py-3 px-4">Nome do Look</th>
                                         <th className="py-3 px-4">Categoria</th>
                                         <th className="py-3 px-4">Preço Promocional</th>
-                                        <th className="py-3 px-4">Preço Riscado</th>
-                                        <th className="py-3 px-4">Tamanhos</th>
+                                        <th className="py-3 px-4">Preço Original</th>
+                                        <th className="py-3 px-4">Tamanhos / Estoque</th>
                                         <th className="py-3 px-4">Status</th>
                                         <th className="py-3 px-4 text-right">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-slate-100 font-medium">
                                     {filteredProducts.length > 0 ? (
                                         filteredProducts.map((prod) => (
-                                            <tr key={prod.id} className="hover:bg-slate-50/70 transition">
+                                            <tr key={prod.id} className="hover:bg-slate-50/60 transition">
                                                 <td className="py-3 px-4">
-                                                    <div className="w-12 h-16 rounded-xl overflow-hidden bg-slate-100 border border-slate-200/80 shrink-0">
+                                                    <div className="w-12 h-16 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                                                         <img
-                                                            src={prod.image_url || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=200'}
+                                                            src={prod.image_url}
                                                             alt={prod.name}
                                                             className="w-full h-full object-cover object-top"
                                                         />
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <p className="font-bold text-slate-900 text-sm capitalize">{prod.name}</p>
-                                                    <p className="text-[11px] font-mono text-slate-400">SKU: {prod.sku}</p>
+                                                    <p className="font-bold text-slate-900 capitalize text-sm">{prod.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{prod.sku}</p>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <span className="px-2.5 py-1 rounded-lg bg-pink-50 text-[#ff007f] font-semibold text-[11px] border border-pink-100">
+                                                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-[11px]">
                                                         {prod.category_name || 'Sem Categoria'}
                                                     </span>
                                                 </td>
-                                                <td className="py-3 px-4">
-                                                    <span className="font-bold text-[#ff007f] text-sm">
-                                                        {formatCurrency(prod.price)}
-                                                    </span>
+                                                <td className="py-3 px-4 font-extrabold text-sm" style={{ color: currentBrandColor }}>
+                                                    {formatCurrency(prod.price)}
+                                                </td>
+                                                <td className="py-3 px-4 text-slate-400 line-through">
+                                                    {prod.original_price ? formatCurrency(prod.original_price) : '—'}
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {prod.original_price ? (
-                                                        <span className="text-slate-400 line-through text-xs font-mono">
-                                                            {formatCurrency(prod.original_price)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-slate-300">-</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="flex items-center gap-1 flex-wrap max-w-[150px]">
-                                                        {prod.variants && prod.variants.length > 0 ? (
-                                                            prod.variants.map((v) => (
-                                                                <span
-                                                                    key={v.id}
-                                                                    className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold"
-                                                                >
-                                                                    {v.size}
-                                                                </span>
-                                                            ))
-                                                        ) : (
-                                                            <span className="text-slate-400">P, M, G, GG</span>
-                                                        )}
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {prod.variants?.map((v) => (
+                                                            <span
+                                                                key={v.id}
+                                                                className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-mono font-bold"
+                                                            >
+                                                                {v.size}: {v.stock}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {prod.status === 'active' ? (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                            Ativo
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                                                            Pausado
-                                                        </span>
-                                                    )}
+                                                    <span
+                                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                                            prod.status === 'active'
+                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                : 'bg-slate-100 text-slate-600'
+                                                        }`}
+                                                    >
+                                                        {prod.status === 'active' ? '● Ativo' : '○ Inativo'}
+                                                    </span>
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
+                                                    <div className="flex items-center justify-end gap-1.5">
                                                         <button
                                                             onClick={() => handleOpenEditProduct(prod)}
                                                             className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -447,7 +522,10 @@ export default function CatalogManager({ store, products, categories, live_url }
                         {categories.map((cat) => (
                             <div key={cat.id} className="p-4 flex items-center justify-between hover:bg-slate-50/70 transition">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-xl bg-pink-50 text-[#ff007f] flex items-center justify-center font-bold">
+                                    <div
+                                        className="w-8 h-8 rounded-xl bg-pink-50 flex items-center justify-center font-bold"
+                                        style={{ color: currentBrandColor }}
+                                    >
                                         <Tag className="w-4 h-4" />
                                     </div>
                                     <div>
@@ -480,7 +558,7 @@ export default function CatalogManager({ store, products, categories, live_url }
                     {/* Formulário de Configuração */}
                     <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm">
                         <h2 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg mb-1 flex items-center gap-2">
-                            <Palette className="w-5 h-5 text-[#ff007f]" />
+                            <Palette className="w-5 h-5" style={{ color: currentBrandColor }} />
                             Identidade Visual do Catálogo
                         </h2>
                         <p className="text-xs text-slate-500 mb-6">
@@ -498,7 +576,7 @@ export default function CatalogManager({ store, products, categories, live_url }
                                     value={brandData.name}
                                     onChange={(e) => setBrandData('name', e.target.value)}
                                     required
-                                    className="w-full text-xs sm:text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
+                                    className="w-full text-xs sm:text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition"
                                 />
                             </div>
 
@@ -649,55 +727,375 @@ export default function CatalogManager({ store, products, categories, live_url }
                             Preview em Tempo Real do Catálogo:
                         </h3>
 
-                        {/* Miniatura do Catálogo */}
-                        <div className="rounded-3xl border border-slate-300 overflow-hidden shadow-lg bg-white select-none">
-                            {/* Navbar Miniatura com a Cor Escolhida */}
-                            <div className="p-3 text-white flex items-center justify-between" style={{ backgroundColor: brandData.accent_color }}>
-                                <div className="flex items-center gap-2">
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-md overflow-hidden">
+                            {/* Simulação do Header do Catálogo */}
+                            <div
+                                className="p-4 flex items-center justify-between text-white transition-colors duration-300"
+                                style={{ backgroundColor: brandData.accent_color }}
+                            >
+                                <div className="flex items-center gap-2.5">
                                     {logoPreview ? (
-                                        <img src={logoPreview} alt="Logo" className="w-6 h-6 rounded-lg object-contain bg-white p-0.5" />
+                                        <img
+                                            src={logoPreview}
+                                            alt="Logo"
+                                            className="w-8 h-8 rounded-lg object-contain bg-white p-0.5"
+                                        />
                                     ) : (
-                                        <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center font-bold text-[9px]">
-                                            DY
+                                        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold text-xs">
+                                            {brandData.name.substring(0, 2).toUpperCase()}
                                         </div>
                                     )}
-                                    <span className="font-bold text-xs truncate max-w-[110px]">{brandData.name}</span>
+                                    <span className="font-extrabold text-xs font-['Space_Grotesk'] truncate max-w-[120px]">
+                                        {brandData.name}
+                                    </span>
                                 </div>
-                                <div className="w-24 h-5 rounded-full bg-white/90 text-slate-400 text-[9px] flex items-center justify-center">
-                                    O que procura?
+
+                                <div className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-bold">
+                                    Sacola (3)
                                 </div>
-                                <div className="text-[10px] font-bold">🛒 Carrinho</div>
                             </div>
 
-                            {/* Corpo Miniatura */}
-                            <div className="p-3 grid grid-cols-3 gap-2 bg-slate-50">
-                                {[1, 2, 3].map((i) => (
-                                    <div key={i} className="bg-white rounded-xl p-1.5 border border-slate-200">
-                                        <div className="aspect-3/4 bg-slate-200 rounded-lg mb-1" />
-                                        <div className="h-2 w-12 bg-slate-200 rounded mb-1" />
-                                        <div className="h-2 w-8 rounded font-bold text-[9px]" style={{ color: brandData.accent_color }}>
-                                            R$ 130,00
+                            {/* Simulação do Corpo */}
+                            <div className="p-4 bg-slate-50 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        className="text-xs font-bold"
+                                        style={{ color: brandData.accent_color }}
+                                    >
+                                        Todas as Categorias
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2.5">
+                                    <div className="bg-white p-2 rounded-xl border border-slate-200">
+                                        <div className="aspect-3/4 bg-slate-100 rounded-lg mb-2 relative">
+                                            <div
+                                                className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-xs text-xs font-bold"
+                                                style={{ color: brandData.accent_color }}
+                                            >
+                                                +
+                                            </div>
                                         </div>
+                                        <p className="text-[11px] font-bold text-slate-800 truncate">Vestido Musse</p>
+                                        <p className="text-xs font-extrabold" style={{ color: brandData.accent_color }}>
+                                            R$ 89,90
+                                        </p>
                                     </div>
-                                ))}
+                                    <div className="bg-white p-2 rounded-xl border border-slate-200">
+                                        <div className="aspect-3/4 bg-slate-100 rounded-lg mb-2 relative">
+                                            <div
+                                                className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow-xs text-xs font-bold"
+                                                style={{ color: brandData.accent_color }}
+                                            >
+                                                +
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] font-bold text-slate-800 truncate">Calça Cargo</p>
+                                        <p className="text-xs font-extrabold" style={{ color: brandData.accent_color }}>
+                                            R$ 109,90
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-
-                        <p className="text-[11px] text-slate-400 text-center">
-                            Ao clicar em salvar, a cor e logo selecionadas serão aplicadas imediatamente no link público do catálogo.
-                        </p>
                     </div>
                 </div>
             )}
 
-            {/* ── MODAL: ADICIONAR / EDITAR LOOK DO CATÁLOGO ── */}
+            {/* ── ABA 4: DOMÍNIO PRÓPRIO & DNS (TUTORIAL COMPLETO) ── */}
+            {activeTab === 'domain' && (
+                <div className="space-y-6 max-w-5xl">
+                    {/* Card de Status do Domínio */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                            <div>
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                        <Globe className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg flex items-center gap-2">
+                                            Domínio Próprio do Catálogo
+                                            {store.custom_domain ? (
+                                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                                    store.custom_domain_status === 'active'
+                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                }`}>
+                                                    {store.custom_domain_status === 'active' ? '🟢 Conectado' : '🟡 Apontamento Pendente'}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                                    ⚪ Não Configurado
+                                                </span>
+                                            )}
+                                        </h2>
+                                        <p className="text-xs text-slate-500">
+                                            Use seu próprio endereço (ex: <code className="text-slate-800 font-bold">loja.suamarca.com.br</code> ou <code className="text-slate-800 font-bold">suamarca.com.br</code>) para seus clientes acessarem a vitrine.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {store.custom_domain && (
+                                <button
+                                    onClick={handleVerifyDns}
+                                    disabled={verifyingDns}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs disabled:opacity-50 shrink-0"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${verifyingDns ? 'animate-spin' : ''}`} />
+                                    <span>{verifyingDns ? 'Verificando DNS...' : 'Testar Apontamento Agora'}</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Resultado do Teste de DNS */}
+                        {dnsCheckResult && (
+                            <div className={`mt-4 p-4 rounded-2xl border text-xs flex items-start gap-3 animate-in fade-in ${
+                                dnsCheckResult.success
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    : 'bg-amber-50 border-amber-200 text-amber-800'
+                            }`}>
+                                {dnsCheckResult.success ? (
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                ) : (
+                                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                )}
+                                <div className="space-y-1">
+                                    <p className="font-bold text-sm">{dnsCheckResult.message}</p>
+                                    <p className="text-[11px] opacity-90">
+                                        IP Resolvido: <strong>{dnsCheckResult.resolved_ip || 'Nenhum'}</strong> · IP do Servidor Alira: <strong>{dnsCheckResult.server_ip}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Formulário para Inserir o Domínio */}
+                        <form onSubmit={handleSaveDomain} className="mt-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                                    Digite seu Domínio ou Subdomínio:
+                                </label>
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-xl">
+                                    <div className="flex items-center flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-slate-800 focus-within:bg-white transition">
+                                        <span className="text-xs text-slate-400 font-mono select-none">https://</span>
+                                        <input
+                                            type="text"
+                                            value={domainData.custom_domain}
+                                            onChange={(e) => setDomainData('custom_domain', e.target.value)}
+                                            placeholder="loja.suamarca.com.br ou suamarca.com.br"
+                                            className="w-full text-xs font-semibold text-slate-900 bg-transparent outline-none ml-1 placeholder-slate-400"
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={savingDomain}
+                                        className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition shadow-xs shrink-0"
+                                    >
+                                        {savingDomain ? 'Salvando...' : 'Salvar Domínio'}
+                                    </button>
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-1.5">
+                                    💡 <strong>Dica recomendada:</strong> Use um subdomínio como <code>loja.seusite.com.br</code> ou <code>catalogo.seusite.com.br</code>.
+                                </p>
+                            </div>
+                        </form>
+                    </div>
+
+                    {/* ── TUTORIAL COMPLETO DE CONFIGURAÇÃO DNS ── */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm space-y-6">
+                        <div>
+                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base flex items-center gap-2">
+                                <Server className="w-5 h-5 text-indigo-600" />
+                                Como Apontar seu Domínio (Tabela de Registros DNS)
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Acesse o painel onde você comprou o domínio (Registro.br, Cloudflare, Hostinger, GoDaddy) e adicione <strong>um dos registros abaixo</strong> na Zona DNS:
+                            </p>
+                        </div>
+
+                        {/* Tabela de Registros DNS com Botões de Copiar */}
+                        <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                                        <th className="py-3 px-4">Tipo</th>
+                                        <th className="py-3 px-4">Nome / Host</th>
+                                        <th className="py-3 px-4">Destino / Valor</th>
+                                        <th className="py-3 px-4">TTL</th>
+                                        <th className="py-3 px-4 text-right">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-mono">
+                                    {/* Opção 1: CNAME Subdomínio (Recomendado) */}
+                                    <tr className="hover:bg-slate-50/70 transition bg-emerald-50/20">
+                                        <td className="py-3.5 px-4 font-bold text-emerald-700">
+                                            CNAME <span className="text-[10px] font-sans text-emerald-600 font-bold ml-1 bg-emerald-100 px-1.5 py-0.5 rounded">Recomendado</span>
+                                        </td>
+                                        <td className="py-3.5 px-4 font-bold text-slate-800">
+                                            loja <span className="font-sans text-[11px] text-slate-400 font-normal">(ou catalogo)</span>
+                                        </td>
+                                        <td className="py-3.5 px-4 font-bold text-slate-900">
+                                            {serverHost}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                            Automático / 3600
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right font-sans">
+                                            <button
+                                                onClick={() => copyToClipboard(serverHost, 'cname')}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                                            >
+                                                {copiedField === 'cname' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                                                <span>{copiedField === 'cname' ? 'Copiado!' : 'Copiar Destino'}</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+
+                                    {/* Opção 2: Tipo A (Domínio Raiz) */}
+                                    <tr className="hover:bg-slate-50/70 transition">
+                                        <td className="py-3.5 px-4 font-bold text-blue-700">
+                                            A <span className="text-[10px] font-sans text-slate-500 font-normal ml-1">(Domínio Raiz)</span>
+                                        </td>
+                                        <td className="py-3.5 px-4 font-bold text-slate-800">
+                                            @ <span className="font-sans text-[11px] text-slate-400 font-normal">(ou deixe em branco)</span>
+                                        </td>
+                                        <td className="py-3.5 px-4 font-bold text-slate-900">
+                                            {serverIp}
+                                        </td>
+                                        <td className="py-3.5 px-4 text-slate-500 font-sans">
+                                            Automático / 3600
+                                        </td>
+                                        <td className="py-3.5 px-4 text-right font-sans">
+                                            <button
+                                                onClick={() => copyToClipboard(serverIp, 'ip')}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                                            >
+                                                {copiedField === 'ip' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                                                <span>{copiedField === 'ip' ? 'Copiado!' : 'Copiar IP'}</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* ── GUIAS PASSO A PASSO POR PROVEDOR (ABAS) ── */}
+                        <div className="space-y-3 pt-2">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                Escolha onde você comprou o domínio para ver o passo a passo:
+                            </h4>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {[
+                                    { id: 'registrobr', label: '🇧🇷 Registro.br' },
+                                    { id: 'cloudflare', label: '☁️ Cloudflare' },
+                                    { id: 'hostinger',  label: '🌐 Hostinger' },
+                                    { id: 'godaddy',    label: '🟢 GoDaddy' },
+                                ].map((prov) => (
+                                    <button
+                                        key={prov.id}
+                                        type="button"
+                                        onClick={() => setActiveDnsProvider(prov.id)}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition border ${
+                                            activeDnsProvider === prov.id
+                                                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        {prov.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Conteúdo do Tutorial Registro.br */}
+                            {activeDnsProvider === 'registrobr' && (
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-700 leading-relaxed">
+                                    <h5 className="font-bold text-slate-900 text-sm">Passo a passo no Registro.br:</h5>
+                                    <ol className="list-decimal list-inside space-y-1.5 pl-1">
+                                        <li>Acesse sua conta no <strong>registro.br</strong> e clique sobre o seu domínio.</li>
+                                        <li>Role a página até a seção <strong>"DNS"</strong> e clique em <strong>"Configurar Endereçamento"</strong> (ou <strong>"Modificar Zona DNS"</strong>).</li>
+                                        <li>Clique no botão <strong>"+ Registro"</strong>.</li>
+                                        <li>No campo <strong>Tipo</strong>, selecione <strong>CNAME</strong>.</li>
+                                        <li>No campo <strong>Nome</strong>, digite <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">loja</code> (para ficar <code>loja.seudominio.com.br</code>).</li>
+                                        <li>No campo <strong>Dados / Destino</strong>, cole <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">{serverHost}</code>.</li>
+                                        <li>Clique em <strong>Salvar Alterações</strong>. Pronto! O apontamento é propagado em cerca de 10 a 30 minutos.</li>
+                                    </ol>
+                                </div>
+                            )}
+
+                            {/* Conteúdo do Tutorial Cloudflare */}
+                            {activeDnsProvider === 'cloudflare' && (
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-700 leading-relaxed">
+                                    <h5 className="font-bold text-slate-900 text-sm">Passo a passo no Cloudflare:</h5>
+                                    <ol className="list-decimal list-inside space-y-1.5 pl-1">
+                                        <li>Acesse o painel do <strong>Cloudflare</strong> e selecione o seu domínio.</li>
+                                        <li>No menu lateral, clique em <strong>DNS</strong> &rarr; <strong>Registros (Records)</strong>.</li>
+                                        <li>Clique em <strong>"Adicionar Registro" (Add record)</strong>.</li>
+                                        <li>Escolha <strong>Type: CNAME</strong>.</li>
+                                        <li>No campo <strong>Name</strong>, digite <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">loja</code>.</li>
+                                        <li>No campo <strong>Target</strong>, cole <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">{serverHost}</code>.</li>
+                                        <li>Deixe o <strong>Status de Proxy</strong> ativado (Nuvem Laranja 🟠) ou DNS Only.</li>
+                                        <li>Clique em <strong>Salvar</strong>. No Cloudflare a propagação ocorre em menos de 2 minutos!</li>
+                                    </ol>
+                                </div>
+                            )}
+
+                            {/* Conteúdo do Tutorial Hostinger */}
+                            {activeDnsProvider === 'hostinger' && (
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-700 leading-relaxed">
+                                    <h5 className="font-bold text-slate-900 text-sm">Passo a passo na Hostinger:</h5>
+                                    <ol className="list-decimal list-inside space-y-1.5 pl-1">
+                                        <li>Acesse o hPanel da <strong>Hostinger</strong> e vá em <strong>Domínios</strong>.</li>
+                                        <li>Clique em <strong>Gerenciar</strong> no seu domínio e depois na aba <strong>DNS / Servidores de Nomes</strong>.</li>
+                                        <li>Em <strong>Gerenciar Registros DNS</strong>:</li>
+                                        <li>Selecione <strong>Tipo: CNAME</strong>.</li>
+                                        <li>Nome: <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">loja</code>.</li>
+                                        <li>Objeto (Aponta para): <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">{serverHost}</code>.</li>
+                                        <li>TTL: 14400 (Padrão).</li>
+                                        <li>Clique em <strong>Adicionar Registro</strong>.</li>
+                                    </ol>
+                                </div>
+                            )}
+
+                            {/* Conteúdo do Tutorial GoDaddy */}
+                            {activeDnsProvider === 'godaddy' && (
+                                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs text-slate-700 leading-relaxed">
+                                    <h5 className="font-bold text-slate-900 text-sm">Passo a passo na GoDaddy:</h5>
+                                    <ol className="list-decimal list-inside space-y-1.5 pl-1">
+                                        <li>Faça login na <strong>GoDaddy</strong> e acesse <strong>Meus Produtos</strong> &rarr; <strong>Domínios</strong>.</li>
+                                        <li>Clique em <strong>DNS</strong> ao lado do domínio desejado.</li>
+                                        <li>Clique em <strong>"Adicionar Novo Registro"</strong>.</li>
+                                        <li>Selecione o Tipo <strong>CNAME</strong>.</li>
+                                        <li>Nome: <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">loja</code>.</li>
+                                        <li>Valor: <code className="bg-white px-1.5 py-0.5 rounded border font-mono font-bold">{serverHost}</code>.</li>
+                                        <li>Clique em <strong>Salvar</strong>.</li>
+                                    </ol>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Alerta sobre Certificado SSL Automático */}
+                        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-start gap-3">
+                            <ShieldCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-bold text-sm">Segurança & Certificado SSL (HTTPS Gratuito)</p>
+                                <p className="mt-0.5 text-indigo-800 leading-relaxed">
+                                    Assim que você realizar o apontamento DNS e o tráfego chegar ao servidor do Alira CRM, o certificado SSL com cadeado de segurança (Let's Encrypt HTTPS) será emitido automaticamente para o seu domínio sem custo adicional.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL DE PRODUTO / LOOK ── */}
             {isProductModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-[#ff007f]" />
-                                {editingProduct ? `Editar Look: ${editingProduct.name}` : 'Adicionar Novo Look ao Catálogo'}
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                {editingProduct ? 'Editar Look do Catálogo' : '+ Adicionar Novo Look'}
                             </h3>
                             <button
                                 onClick={() => setIsProductModalOpen(false)}
@@ -708,44 +1106,57 @@ export default function CatalogManager({ store, products, categories, live_url }
                         </div>
 
                         <form onSubmit={handleSaveProduct} className="space-y-4 py-4 overflow-y-auto flex-1">
-                            {/* Nome do Look */}
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Nome da Peça / Look *
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Nome do Look *
                                 </label>
                                 <input
                                     type="text"
                                     value={prodData.name}
                                     onChange={(e) => setProdData('name', e.target.value)}
-                                    placeholder="Ex: Vestido musse, Calça cargo..."
+                                    placeholder="Ex: Vestido Longo Musse Fenda"
                                     required
-                                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition"
                                 />
                             </div>
 
-                            {/* Categoria */}
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Categoria do Look
-                                </label>
-                                <select
-                                    value={prodData.category_id}
-                                    onChange={(e) => setProdData('category_id', e.target.value)}
-                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
-                                >
-                                    <option value="">Selecione uma categoria...</option>
-                                    {categories.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Preços */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                        Categoria *
+                                    </label>
+                                    <select
+                                        value={prodData.category_id}
+                                        onChange={(e) => setProdData('category_id', e.target.value)}
+                                        className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition"
+                                    >
+                                        <option value="">Selecione...</option>
+                                        {categories.map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                        Status
+                                    </label>
+                                    <select
+                                        value={prodData.status}
+                                        onChange={(e) => setProdData('status', e.target.value)}
+                                        className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition"
+                                    >
+                                        <option value="active">Ativo no Catálogo</option>
+                                        <option value="inactive">Oculto / Inativo</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
                                         Preço Promocional (R$) *
                                     </label>
                                     <input
@@ -753,56 +1164,72 @@ export default function CatalogManager({ store, products, categories, live_url }
                                         step="0.01"
                                         value={prodData.price}
                                         onChange={(e) => setProdData('price', e.target.value)}
-                                        placeholder="Ex: 130.00"
+                                        placeholder="89.90"
                                         required
-                                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition font-bold text-[#ff007f]"
+                                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition font-mono font-bold"
                                     />
                                 </div>
+
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                        Preço Original Riscado (R$)
+                                    <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                        Preço Riscado / Original (R$)
                                     </label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         value={prodData.original_price}
                                         onChange={(e) => setProdData('original_price', e.target.value)}
-                                        placeholder="Ex: 150.00 (Opcional)"
-                                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
+                                        placeholder="129.90"
+                                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition font-mono"
                                     />
                                 </div>
                             </div>
 
                             {/* Foto do Look */}
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                                    Foto do Look (URL ou Upload)
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Foto do Look
                                 </label>
-                                <div className="flex items-center gap-3">
+
+                                <div className="flex items-start gap-3">
                                     {prodImagePreview ? (
-                                        <div className="w-16 h-20 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                                        <div className="w-16 h-20 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shrink-0 relative group">
                                             <img
                                                 src={prodImagePreview}
                                                 alt="Preview"
                                                 className="w-full h-full object-cover object-top"
                                             />
                                         </div>
-                                    ) : null}
+                                    ) : (
+                                        <div
+                                            onClick={() => document.getElementById('prodFile')?.click()}
+                                            className="w-16 h-20 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer bg-slate-50 shrink-0"
+                                        >
+                                            <Upload className="w-4 h-4 mb-0.5" />
+                                            <span className="text-[8px] font-bold">Foto</span>
+                                        </div>
+                                    )}
 
-                                    <div className="flex-1 space-y-2">
+                                    <div className="flex-1 space-y-1.5">
                                         <input
+                                            id="prodFile"
                                             type="file"
-                                            ref={prodFileInputRef}
-                                            onChange={handleProdImageFileChange}
                                             accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setProdData('image', file);
+                                                    setProdImagePreview(URL.createObjectURL(file));
+                                                }
+                                            }}
                                             className="hidden"
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => prodFileInputRef.current?.click()}
-                                            className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                                            onClick={() => document.getElementById('prodFile')?.click()}
+                                            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                                         >
-                                            Fazer Upload de Foto
+                                            Upload do Computador
                                         </button>
                                         <input
                                             type="url"
@@ -818,37 +1245,13 @@ export default function CatalogManager({ store, products, categories, live_url }
                                 </div>
                             </div>
 
-                            {/* Status */}
-                            {editingProduct && (
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                        Visibilidade no Catálogo
-                                    </label>
-                                    <select
-                                        value={prodData.status}
-                                        onChange={(e) => setProdData('status', e.target.value)}
-                                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                                    >
-                                        <option value="active">🟢 Ativo (Exibir na Vitrine)</option>
-                                        <option value="inactive">⚪ Pausado (Ocultar da Vitrine)</option>
-                                    </select>
-                                </div>
-                            )}
-
-                            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsProductModalOpen(false)}
-                                    className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-                                >
-                                    Cancelar
-                                </button>
+                            <div className="pt-2">
                                 <button
                                     type="submit"
-                                    disabled={savingProd || !prodData.name || !prodData.price}
-                                    className="px-5 py-2 rounded-xl bg-[#ff007f] hover:bg-[#e11d48] text-white text-xs font-bold shadow-md transition disabled:opacity-50"
+                                    disabled={savingProd}
+                                    className="w-full py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md transition"
                                 >
-                                    {savingProd ? 'Salvando...' : editingProduct ? 'Atualizar Look' : 'Publicar no Catálogo'}
+                                    {savingProd ? 'Salvando Look...' : editingProduct ? 'Salvar Alterações' : '+ Cadastrar Look no Catálogo'}
                                 </button>
                             </div>
                         </form>
@@ -856,14 +1259,13 @@ export default function CatalogManager({ store, products, categories, live_url }
                 </div>
             )}
 
-            {/* ── MODAL: NOVA CATEGORIA ── */}
+            {/* ── MODAL DE NOVA CATEGORIA ── */}
             {isCategoryModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base flex items-center gap-2">
-                                <Tag className="w-4 h-4 text-[#ff007f]" />
-                                Criar Nova Categoria
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                + Nova Categoria
                             </h3>
                             <button
                                 onClick={() => setIsCategoryModalOpen(false)}
@@ -873,37 +1275,28 @@ export default function CatalogManager({ store, products, categories, live_url }
                             </button>
                         </div>
 
-                        <form onSubmit={handleSaveCategory} className="space-y-4">
+                        <form onSubmit={handleSaveCategory} className="space-y-4 py-4">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
                                     Nome da Categoria *
                                 </label>
                                 <input
                                     type="text"
                                     value={catData.name}
                                     onChange={(e) => setCatData('name', e.target.value)}
-                                    placeholder="Ex: Vestidos de Festa, Moda Praia..."
+                                    placeholder="Ex: Vestidos, Conjuntos, Body..."
                                     required
-                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#ff007f] outline-none transition"
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white outline-none transition"
                                 />
                             </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCategoryModalOpen(false)}
-                                    className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={savingCat || !catData.name.trim()}
-                                    className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md transition disabled:opacity-50"
-                                >
-                                    {savingCat ? 'Salvando...' : 'Criar Categoria'}
-                                </button>
-                            </div>
+                            <button
+                                type="submit"
+                                disabled={savingCat}
+                                className="w-full py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md transition"
+                            >
+                                {savingCat ? 'Criando...' : 'Criar Categoria'}
+                            </button>
                         </form>
                     </div>
                 </div>

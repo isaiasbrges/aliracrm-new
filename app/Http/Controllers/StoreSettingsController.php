@@ -105,36 +105,35 @@ class StoreSettingsController extends Controller
             $data['external_pos_webhook_secret'] = $request->input('external_pos_webhook_secret');
         }
 
-        if ($request->hasFile('logo')) {
-            if ($store->logo_url) {
-                $oldPath = ltrim(parse_url($store->logo_url, PHP_URL_PATH), '/');
-                if (Storage::disk('public')->exists($oldPath)) {
-                    Storage::disk('public')->delete($oldPath);
-                }
-            }
+        $logoUrl = $store->logo_url;
 
-            $path = $request->file('logo')->store("logos/{$store->id}", 'public');
-            $data['logo_url'] = Storage::disk('public')->url($path);
+        if ($request->hasFile('logo')) {
+            $file = $request->file('logo');
+            $filename = 'logo_' . $store->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $destinationPath = public_path('uploads/logos');
+            if (!file_exists($destinationPath)) {
+                @mkdir($destinationPath, 0777, true);
+            }
+            $file->move($destinationPath, $filename);
+            $logoUrl = '/uploads/logos/' . $filename;
         } elseif ($request->filled('logo_url')) {
-            $data['logo_url'] = $request->input('logo_url');
+            $logoUrl = $request->input('logo_url');
         }
 
         if ($request->boolean('remove_logo')) {
-            if ($store->logo_url) {
-                $oldPath = ltrim(parse_url($store->logo_url, PHP_URL_PATH), '/');
-                Storage::disk('public')->delete($oldPath);
-            }
-            $data['logo_url'] = null;
+            $logoUrl = null;
         }
+
+        $data['logo_url'] = $logoUrl;
 
         try {
             $store->update($data);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error("Erro ao atualizar loja: " . $e->getMessage());
-            $store->update([
-                'name'         => $data['name'],
-                'accent_color' => $data['accent_color'],
-            ]);
+            $store->name = $data['name'];
+            $store->accent_color = $data['accent_color'];
+            $store->logo_url = $logoUrl;
+            $store->save();
         }
 
         return redirect()->route('settings.store')->with('success', 'Configurações de logo, cores e webhook da loja salvas com sucesso!');

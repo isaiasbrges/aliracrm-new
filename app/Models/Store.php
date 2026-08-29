@@ -18,6 +18,8 @@ class Store extends Model
         'active',
         'accent_color',
         'logo_url',
+        'custom_domain',
+        'custom_domain_status',
         'external_pos_webhook_enabled',
         'external_pos_webhook_url',
         'external_pos_webhook_secret',

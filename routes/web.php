@@ -90,6 +90,8 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::post('/catalogo/categorias', [\App\Http\Controllers\CatalogManagerController::class, 'storeCategory'])->name('catalog.manager.categories.store');
     Route::delete('/catalogo/categorias/{category}', [\App\Http\Controllers\CatalogManagerController::class, 'destroyCategory'])->name('catalog.manager.categories.destroy');
     Route::post('/catalogo/branding', [\App\Http\Controllers\CatalogManagerController::class, 'updateBranding'])->name('catalog.manager.branding.update');
+    Route::post('/catalogo/dominio', [\App\Http\Controllers\CatalogManagerController::class, 'updateCustomDomain'])->name('catalog.manager.domain.update');
+    Route::post('/catalogo/dominio/verificar', [\App\Http\Controllers\CatalogManagerController::class, 'verifyCustomDomain'])->name('catalog.manager.domain.verify');
 
     // Produtos & Estoque
     Route::get('/produtos', [ProductController::class, 'index'])->name('products.index');
