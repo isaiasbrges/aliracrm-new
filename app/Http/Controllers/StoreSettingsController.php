@@ -40,6 +40,9 @@ class StoreSettingsController extends Controller
                 ];
             });
 
+        $serverHost = parse_url(config('app.url') ?: 'https://aliracrm.site', PHP_URL_HOST) ?: 'aliracrm.site';
+        $serverIp = @gethostbyname($serverHost) ?: '185.173.111.45';
+
         return Inertia::render('Settings/Store', [
             'store' => [
                 'id'                            => $currentStore->id,
@@ -47,6 +50,8 @@ class StoreSettingsController extends Controller
                 'slug'                          => $currentStore->slug,
                 'accent_color'                  => $currentStore->accent_color ?? '#ff007f',
                 'logo_url'                      => $currentStore->logo_url,
+                'custom_domain'                 => $currentStore->custom_domain,
+                'custom_domain_status'          => $currentStore->custom_domain_status ?? 'pending',
                 'external_pos_webhook_enabled'  => (bool) $currentStore->external_pos_webhook_enabled,
                 'external_pos_webhook_url'      => $currentStore->external_pos_webhook_url,
                 'external_pos_webhook_secret'   => $currentStore->external_pos_webhook_secret,
@@ -57,6 +62,10 @@ class StoreSettingsController extends Controller
                 'slug' => $organization->slug,
             ],
             'stores' => $stores,
+            'dns_info' => [
+                'server_ip'   => $serverIp,
+                'server_host' => $serverHost,
+            ],
             'evolution' => [
                 'webhook_url'    => url('/api/webhooks/evolution'),
                 'webhook_secret' => (string) config('services.evolution.webhook_secret', 'alira-evo-secret-2026'),
@@ -74,9 +83,10 @@ class StoreSettingsController extends Controller
             'accent_color'                 => ['nullable', 'string', 'max:30'],
             'logo'                         => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
             'logo_url'                     => ['nullable', 'string', 'max:1000'],
+            'custom_domain'                => ['nullable', 'string', 'max:190'],
             'external_pos_webhook_enabled' => ['nullable', 'boolean'],
-            'external_pos_webhook_url'     => ['nullable', 'string', 'max:1000'],
-            'external_pos_webhook_secret'  => ['nullable', 'string', 'max:255'],
+            'external_pos_webhook_url'     => ['nullable', 'url', 'max:500'],
+            'external_pos_webhook_secret'  => ['nullable', 'string', 'max:100'],
         ]);
 
         $store = $request->attributes->get('store');
@@ -90,10 +100,19 @@ class StoreSettingsController extends Controller
             $rawColor = '#ff007f';
         }
 
+        $domain = trim(strtolower((string) $request->input('custom_domain', '')));
+        $domain = preg_replace('#^https?://#', '', $domain);
+        $domain = rtrim($domain, '/');
+
         $data = [
-            'name'         => $request->input('name', $store->name),
-            'accent_color' => $rawColor,
+            'name'          => $request->input('name', $store->name),
+            'accent_color'  => $rawColor,
+            'custom_domain' => !empty($domain) ? $domain : null,
         ];
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('stores', 'custom_domain_status')) {
+            $data['custom_domain_status'] = !empty($domain) ? 'pending' : 'none';
+        }
 
         if (\Illuminate\Support\Facades\Schema::hasColumn('stores', 'external_pos_webhook_enabled')) {
             $data['external_pos_webhook_enabled'] = $request->boolean('external_pos_webhook_enabled');

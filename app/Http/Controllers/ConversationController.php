@@ -76,13 +76,21 @@ class ConversationController extends Controller
             ->orderBy('name')
             ->get();
 
+        $catalogProducts = Product::query()
+            ->where('organization_id', $organizationId)
+            ->where('store_id', $storeId)
+            ->where('status', 'active')
+            ->with(['category'])
+            ->get(['id', 'name', 'price', 'original_price', 'image_url', 'category_id']);
+
         return Inertia::render('Conversations/Index', compact(
             'conversations',
             'activeConversation',
             'messages',
             'status',
             'search',
-            'customers'
+            'customers',
+            'catalogProducts'
         ));
     }
 

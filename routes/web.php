@@ -25,6 +25,7 @@ Route::middleware('guest')->group(function (): void {
 // Catálogo Digital Público (Aberto para Clientes no WhatsApp / Instagram)
 Route::get('/catalogo', [\App\Http\Controllers\PublicCatalogController::class, 'index'])->name('catalog.public.default');
 Route::get('/loja/{slug}/catalogo', [\App\Http\Controllers\PublicCatalogController::class, 'index'])->name('catalog.public');
+Route::post('/catalogo/pedido', [\App\Http\Controllers\PublicCatalogController::class, 'checkoutOrder'])->name('catalog.public.checkout');
 
 Route::get('/loja/{slug}', function (Request $request, string $slug) {
     $store = Store::query()->where('slug', $slug)->where('active', true)->first()
@@ -53,9 +54,24 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/multi-store', fn () => redirect()->route('settings.store'));
 });
 
+// Rota Raiz Inteligente (Domínio Próprio da Loja ou Visitante → Catálogo Digital; Usuário Logado → Dashboard CRM)
+Route::get('/', function (Request $request) {
+    $host = $request->getHost();
+    $isCustomDomain = $host && !in_array($host, ['localhost', '127.0.0.1', 'aliracrm.site', 'www.aliracrm.site'], true);
+
+    if ($isCustomDomain) {
+        return app(\App\Http\Controllers\PublicCatalogController::class)->index($request);
+    }
+
+    if ($request->user()) {
+        return app(\App\Http\Controllers\DashboardController::class)->__invoke($request);
+    }
+
+    return app(\App\Http\Controllers\PublicCatalogController::class)->index($request);
+})->name('dashboard');
+
 // Workspace Autenticado Multi-Tenant
 Route::middleware(['auth', 'tenant'])->group(function (): void {
-    Route::get('/', DashboardController::class)->name('dashboard');
 
     // Funil de Vendas (Kanban)
     Route::get('/funil', [DealController::class, 'index'])->name('deals.index');

@@ -108,6 +108,7 @@ export default function StoreSettings({ store, organization, stores, evolution, 
         accent_color:                 store?.accent_color || '#ff007f',
         logo:                         null,
         logo_url:                     store?.logo_url || '',
+        custom_domain:                store?.custom_domain || '',
         remove_logo:                  false,
         external_pos_webhook_enabled: store?.external_pos_webhook_enabled || false,
         external_pos_webhook_url:     store?.external_pos_webhook_url || '',
@@ -381,7 +382,58 @@ export default function StoreSettings({ store, organization, stores, evolution, 
                         </div>
                     </div>
 
-                    {/* ── CARD 2: WEBHOOK DE PDV EXTERNO (OPCIONAL & DESABILITÁVEL) ── */}
+                    {/* ── CARD 2: DOMÍNIO PERSONALIZADO & CATÁLOGO ── */}
+                    <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 mb-4 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                    <Globe className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                                        Domínio Personalizado do Catálogo
+                                        {data.custom_domain && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                🟢 Configurado
+                                            </span>
+                                        )}
+                                    </h2>
+                                    <p className="text-xs text-slate-500">
+                                        Aponte seu domínio próprio (ex: <code className="text-slate-800 font-bold">dyvinusslooks.com.br</code> ou <code className="text-slate-800 font-bold">loja.dyvinusslooks.com.br</code>) diretamente para a vitrine.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <a
+                                href="/catalogo/gerenciar?tab=domain"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-semibold transition border border-slate-200"
+                            >
+                                <span>Ver Tutorial de DNS</span>
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                            </a>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                Domínio ou Subdomínio da Loja
+                            </label>
+                            <div className="flex items-center max-w-xl bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 focus-within:border-slate-800 focus-within:bg-white transition">
+                                <span className="text-xs text-slate-400 font-mono select-none">https://</span>
+                                <input
+                                    type="text"
+                                    value={data.custom_domain}
+                                    onChange={(e) => setData('custom_domain', e.target.value)}
+                                    placeholder="dyvinusslooks.com.br ou loja.dyvinusslooks.com.br"
+                                    className="w-full text-xs font-semibold text-slate-900 bg-transparent outline-none ml-1 placeholder-slate-400"
+                                />
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                                📌 Para que seu domínio funcione, crie o registro <strong>CNAME</strong> apontando para <code>aliracrm.site</code> ou registro <strong>Tipo A</strong> para o IP <code>185.173.111.45</code> no seu provedor de domínio (Registro.br / Cloudflare / Hostinger).
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* ── CARD 3: WEBHOOK DE PDV EXTERNO (OPCIONAL & DESABILITÁVEL) ── */}
                     <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 mb-6 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">

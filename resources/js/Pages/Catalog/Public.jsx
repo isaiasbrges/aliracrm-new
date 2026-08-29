@@ -20,6 +20,10 @@ import {
     Truck,
     CreditCard,
     ShieldCheck,
+    User,
+    MapPin,
+    CheckCircle2,
+    ExternalLink,
 } from 'lucide-react';
 
 /* ── Utility: hex → "r g b" for CSS color-mix ── */
@@ -46,7 +50,13 @@ export default function PublicCatalog({ store, products, categories, filters }) 
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [modalSize, setModalSize] = useState('M');
     const [modalQty, setModalQty] = useState(1);
-    const [copied, setCopied] = useState(false);
+
+    // Dados do Cliente para o Checkout Integrado
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerCity, setCustomerCity] = useState('');
+    const [submittingOrder, setSubmittingOrder] = useState(false);
+    const [orderSuccess, setOrderSuccess] = useState(null);
 
     // Cor global dinâmica da loja definida no painel
     const brandColor = store?.accent_color || '#ff007f';
@@ -161,10 +171,55 @@ export default function PublicCatalog({ store, products, categories, filters }) 
     const bagCount = bag.reduce((sum, item) => sum + item.qty, 0);
     const bagTotal = bag.reduce((sum, item) => sum + item.price * item.qty, 0);
 
-    const handleWhatsAppCheckout = () => {
+    /* ── Checkout Integrado: Salva Pedido, Lead, Venda e Conversa no CRM ── */
+    const handleWhatsAppCheckout = async () => {
         if (bag.length === 0) return;
 
-        let message = `Olá, ${storeName}! ✨ Gostaria de fazer o pedido dos seguintes looks do catálogo:\n\n`;
+        setSubmittingOrder(true);
+        let orderCode = 'CAT-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            const res = await fetch('/catalogo/pedido', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken || '',
+                },
+                body: JSON.stringify({
+                    store_id: store.id,
+                    customer_name: customerName || 'Cliente do Catálogo',
+                    customer_phone: customerPhone || '',
+                    customer_city: customerCity || '',
+                    items: bag.map((item) => ({
+                        product_id: item.product.id,
+                        size: item.size,
+                        qty: item.qty,
+                        price: item.price,
+                    })),
+                }),
+            });
+
+            if (res.ok) {
+                const result = await res.json();
+                if (result.order_number) {
+                    orderCode = result.order_number;
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao integrar pedido com o CRM:', e);
+        } finally {
+            setSubmittingOrder(false);
+        }
+
+        // Montar mensagem para o WhatsApp com Código do Pedido do CRM
+        let message = `Olá, ${storeName}! ✨\n\nAcabei de montar meu pedido no catálogo online:\n`;
+        message += `📋 *Pedido:* #${orderCode}\n`;
+        if (customerName) message += `👤 *Nome:* ${customerName}\n`;
+        if (customerCity) message += `📍 *Cidade:* ${customerCity}\n`;
+        message += `\n*Looks Escolhidos:*\n`;
+
         bag.forEach((item, index) => {
             message += `${index + 1}. *${item.product.name}*\n`;
             message += `   • Tamanho: ${item.size}\n`;
@@ -177,10 +232,12 @@ export default function PublicCatalog({ store, products, categories, filters }) 
 
         const phone = store.whatsapp ? store.whatsapp.replace(/\D/g, '') : '5511999999999';
         const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`;
+
+        setOrderSuccess({ orderCode, bagTotal, bagCount });
         window.open(url, '_blank');
     };
 
-    // Categorias dinâmicas vindas do banco ou lista padrão de boutique
+    // Categorias dinâmicas
     const sidebarCategories = (categories && categories.length > 0)
         ? categories.map(c => c.name)
         : [
@@ -252,7 +309,7 @@ export default function PublicCatalog({ store, products, categories, filters }) 
 
                     {/* Botão Carrinho / Sacola */}
                     <button
-                        onClick={() => setIsBagOpen(true)}
+                        onClick={() => { setIsBagOpen(true); setOrderSuccess(null); }}
                         className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm bg-white/10 hover:bg-white/20 border border-white/30 px-4 py-2.5 rounded-full transition shadow-xs shrink-0 active:scale-95"
                     >
                         <div className="relative">
@@ -539,13 +596,13 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                 </div>
             )}
 
-            {/* ── GAVETA LATERAL DO CARRINHO (SLIDE-OVER BAG) ── */}
+            {/* ── GAVETA LATERAL DO CARRINHO (SLIDE-OVER BAG INTEGRADA COM CRM) ── */}
             {isBagOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex justify-end">
                     <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
                         {/* Header do Carrinho */}
                         <div
-                            className="p-4 text-white flex items-center justify-between"
+                            className="p-4 text-white flex items-center justify-between shadow-xs"
                             style={{ background: brandColor }}
                         >
                             <div className="flex items-center gap-2">
@@ -562,84 +619,138 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                             </button>
                         </div>
 
-                        {/* Itens da Sacola */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3 divide-y divide-slate-100">
-                            {bag.length > 0 ? (
-                                bag.map((item) => (
-                                    <div key={item.key} className="pt-3 first:pt-0 flex items-center gap-3">
-                                        <img
-                                            src={item.product.image_url}
-                                            alt={item.product.name}
-                                            className="w-16 h-20 rounded-xl object-cover border border-slate-100 shrink-0"
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-bold text-xs text-slate-800 truncate capitalize">
-                                                {item.product.name}
-                                            </h4>
-                                            <p className="text-[11px] text-slate-500">
-                                                Tamanho: <span className="font-bold text-slate-700">{item.size}</span>
-                                            </p>
-                                            <p
-                                                className="text-xs font-bold mt-1"
-                                                style={{ color: brandColor }}
-                                            >
-                                                {formatCurrency(item.price * item.qty)}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-1">
-                                            <button
-                                                onClick={() => updateQty(item.key, -1)}
-                                                className="w-6 h-6 rounded bg-white text-slate-600 shadow-2xs flex items-center justify-center"
-                                            >
-                                                <Minus className="w-3.5 h-3.5" />
-                                            </button>
-                                            <span className="text-xs font-bold px-1.5">{item.qty}</span>
-                                            <button
-                                                onClick={() => updateQty(item.key, 1)}
-                                                className="w-6 h-6 rounded bg-white text-slate-600 shadow-2xs flex items-center justify-center"
-                                            >
-                                                <Plus className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
-                                    <ShoppingBag className="w-12 h-12 text-slate-200 mb-2" />
-                                    <p className="text-xs">Sua sacola está vazia.</p>
-                                    <button
-                                        onClick={() => setIsBagOpen(false)}
-                                        className="mt-4 px-4 py-2 text-white text-xs font-bold rounded-xl"
-                                        style={{ background: brandColor }}
-                                    >
-                                        Explorar Looks
-                                    </button>
+                        {/* Tela de Pedido Concluído / Enviado */}
+                        {orderSuccess ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
+                                    <CheckCircle2 className="w-9 h-9" />
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Footer do Carrinho & Botão WhatsApp */}
-                        {bag.length > 0 && (
-                            <div className="p-4 border-t border-slate-100 bg-slate-50 space-y-3">
-                                <div className="flex items-center justify-between text-sm font-bold text-slate-900 font-['Space_Grotesk']">
-                                    <span>Total:</span>
-                                    <span
-                                        className="text-lg font-extrabold"
-                                        style={{ color: brandColor }}
-                                    >
-                                        {formatCurrency(bagTotal)}
-                                    </span>
+                                <div>
+                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg">
+                                        Pedido Aberto com Sucesso!
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Código de Rastreio do CRM: <strong className="text-slate-800 font-mono">#{orderSuccess.orderCode}</strong>
+                                    </p>
                                 </div>
-
+                                <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 max-w-xs">
+                                    Uma nova conversa foi iniciada no seu WhatsApp para confirmar o pagamento e combinar a entrega.
+                                </p>
                                 <button
-                                    onClick={handleWhatsAppCheckout}
-                                    className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition transform active:scale-95"
+                                    onClick={() => { setBag([]); setOrderSuccess(null); setIsBagOpen(false); }}
+                                    className="px-6 py-2.5 rounded-xl text-white text-xs font-bold shadow-md"
+                                    style={{ background: brandColor }}
                                 >
-                                    <MessageCircle className="w-5 h-5 fill-white" />
-                                    Pedir no WhatsApp Agora
+                                    Continuar Comprando
                                 </button>
                             </div>
+                        ) : (
+                            <>
+                                {/* Itens da Sacola */}
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 divide-y divide-slate-100">
+                                    {bag.length > 0 ? (
+                                        bag.map((item) => (
+                                            <div key={item.key} className="pt-3 first:pt-0 flex items-center gap-3">
+                                                <img
+                                                    src={item.product.image_url}
+                                                    alt={item.product.name}
+                                                    className="w-16 h-20 rounded-xl object-cover border border-slate-100 shrink-0"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-xs text-slate-800 truncate capitalize">
+                                                        {item.product.name}
+                                                    </h4>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Tamanho: <span className="font-bold text-slate-700">{item.size}</span>
+                                                    </p>
+                                                    <p
+                                                        className="text-xs font-bold mt-1"
+                                                        style={{ color: brandColor }}
+                                                    >
+                                                        {formatCurrency(item.price * item.qty)}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg p-1">
+                                                    <button
+                                                        onClick={() => updateQty(item.key, -1)}
+                                                        className="w-6 h-6 rounded bg-white text-slate-600 shadow-2xs flex items-center justify-center"
+                                                    >
+                                                        <Minus className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <span className="text-xs font-bold px-1.5">{item.qty}</span>
+                                                    <button
+                                                        onClick={() => updateQty(item.key, 1)}
+                                                        className="w-6 h-6 rounded bg-white text-slate-600 shadow-2xs flex items-center justify-center"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                                            <ShoppingBag className="w-12 h-12 text-slate-200 mb-2" />
+                                            <p className="text-xs">Sua sacola está vazia.</p>
+                                            <button
+                                                onClick={() => setIsBagOpen(false)}
+                                                className="mt-4 px-4 py-2 text-white text-xs font-bold rounded-xl"
+                                                style={{ background: brandColor }}
+                                            >
+                                                Explorar Looks
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer do Carrinho com Dados do Cliente + Botão WhatsApp Integrado */}
+                                {bag.length > 0 && (
+                                    <div className="p-4 border-t border-slate-100 bg-slate-50 space-y-3">
+                                        {/* Mini Formulário de Identificação do Lead */}
+                                        <div className="bg-white p-3 rounded-2xl border border-slate-200 space-y-2">
+                                            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                                <User className="w-3.5 h-3.5 text-slate-400" />
+                                                Seus Dados de Contato:
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={customerName}
+                                                    onChange={(e) => setCustomerName(e.target.value)}
+                                                    placeholder="Seu Nome"
+                                                    className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none"
+                                                />
+                                                <input
+                                                    type="tel"
+                                                    value={customerPhone}
+                                                    onChange={(e) => setCustomerPhone(e.target.value)}
+                                                    placeholder="WhatsApp (com DDD)"
+                                                    className="w-full text-xs px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-sm font-bold text-slate-900 font-['Space_Grotesk']">
+                                            <span>Total:</span>
+                                            <span
+                                                className="text-lg font-extrabold"
+                                                style={{ color: brandColor }}
+                                            >
+                                                {formatCurrency(bagTotal)}
+                                            </span>
+                                        </div>
+
+                                        <button
+                                            onClick={handleWhatsAppCheckout}
+                                            disabled={submittingOrder}
+                                            className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition transform active:scale-95 disabled:opacity-50"
+                                        >
+                                            <MessageCircle className="w-5 h-5 fill-white" />
+                                            <span>{submittingOrder ? 'Registrando Pedido...' : 'Pedir no WhatsApp Agora'}</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

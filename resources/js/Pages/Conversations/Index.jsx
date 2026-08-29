@@ -126,6 +126,7 @@ export default function ConversationsIndex({
     activeConversation,
     messages,
     customers,
+    catalogProducts = [],
     status,
     search,
 }) {
@@ -133,6 +134,8 @@ export default function ConversationsIndex({
     const [isQuickRepliesOpen, setIsQuickRepliesOpen] = useState(false);
     const [isInteractiveModalOpen, setIsInteractiveModalOpen] = useState(false);
     const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+    const [isCatalogPickerOpen, setIsCatalogPickerOpen] = useState(false);
+    const [catalogSearch, setCatalogSearch] = useState('');
 
     // Form de Mensagem Interativa com Opções
     const [interactiveTitle, setInteractiveTitle] = useState('Como podemos te atender hoje?');
@@ -617,6 +620,16 @@ export default function ConversationsIndex({
                             >
                                 <ListOrdered className="w-3.5 h-3.5" />
                                 <span>Enviar Opções / Menu</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsCatalogPickerOpen(true)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-pink-100 hover:bg-pink-200 text-pink-900 font-bold border border-pink-300/60 shadow-2xs transition shrink-0 active:scale-95"
+                                title="Enviar fotos, preços e link direto de um look do catálogo para o cliente"
+                            >
+                                <Sparkles className="w-3.5 h-3.5 text-pink-600" />
+                                <span>Looks do Catálogo</span>
                             </button>
 
                             <button
