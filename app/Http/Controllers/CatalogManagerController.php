@@ -261,8 +261,17 @@ class CatalogManagerController extends Controller
             if (!file_exists($destinationPath)) {
                 @mkdir($destinationPath, 0777, true);
             }
-            $file->move($destinationPath, $filename);
-            $logoUrl = '/uploads/logos/' . $filename;
+            try {
+                $file->move($destinationPath, $filename);
+                $logoUrl = '/uploads/logos/' . $filename;
+            } catch (\Throwable $e) {
+                try {
+                    $path = $file->storeAs('logos', $filename, 'public');
+                    $logoUrl = '/storage/' . $path;
+                } catch (\Throwable $e2) {
+                    \Illuminate\Support\Facades\Log::error("Erro ao fazer upload da logo: " . $e2->getMessage());
+                }
+            }
         } elseif ($request->filled('logo_url')) {
             $logoUrl = $request->input('logo_url');
         }

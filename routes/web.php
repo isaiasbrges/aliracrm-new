@@ -54,7 +54,7 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/multi-store', fn () => redirect()->route('settings.store'));
 });
 
-// Rota Raiz Inteligente (Domínio Próprio da Loja ou Visitante → Catálogo Digital; Usuário Logado → Dashboard CRM)
+// Rota Raiz Inteligente (Domínio Próprio da Loja → Catálogo Digital; Visitante → Login; Logado → Dashboard)
 Route::get('/', function (Request $request) {
     $host = $request->getHost();
     $isCustomDomain = $host && !in_array($host, ['localhost', '127.0.0.1', 'aliracrm.site', 'www.aliracrm.site'], true);
@@ -64,14 +64,16 @@ Route::get('/', function (Request $request) {
     }
 
     if ($request->user()) {
-        return app(\App\Http\Controllers\DashboardController::class)->__invoke($request);
+        return redirect()->route('dashboard');
     }
 
-    return app(\App\Http\Controllers\PublicCatalogController::class)->index($request);
-})->name('dashboard');
+    return redirect()->route('login');
+})->name('root');
 
 // Workspace Autenticado Multi-Tenant
 Route::middleware(['auth', 'tenant'])->group(function (): void {
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/painel', fn () => redirect()->route('dashboard'));
 
     // Funil de Vendas (Kanban)
     Route::get('/funil', [DealController::class, 'index'])->name('deals.index');
