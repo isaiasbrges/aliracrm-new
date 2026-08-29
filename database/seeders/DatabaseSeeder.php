@@ -13,25 +13,25 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $organization = Organization::query()->updateOrCreate(
-            ['slug' => 'dyvinus-org'],
-            ['name' => 'Dyvinus Moda & Varejo', 'status' => 'active'],
+            ['slug' => 'dyvinuss-looks'],
+            ['name' => 'Dyvinuss Looks', 'status' => 'active'],
         );
 
-        // Loja Exclusiva: Dyvinus
+        // Loja Única & Exclusiva: Dyvinuss Looks (/loja/dyvinuss-looks)
         $storeDyvinus = Store::query()->updateOrCreate(
-            ['organization_id' => $organization->id, 'slug' => 'dyvinus'],
-            ['name' => 'Dyvinus', 'active' => true, 'accent_color' => '#db2777'],
+            ['organization_id' => $organization->id, 'slug' => 'dyvinuss-looks'],
+            ['name' => 'Dyvinuss Looks', 'active' => true, 'accent_color' => '#db2777'],
         );
         StoreCounter::query()->firstOrCreate(['store_id' => $storeDyvinus->id], ['last_number' => 100]);
 
-        // Remover quaisquer outras lojas para manter foco 100% na Dyvinus
+        // Remover quaisquer outras lojas anteriores
         Store::query()->where('id', '!=', $storeDyvinus->id)->delete();
 
         User::query()->updateOrCreate(
             ['email' => 'demo@alira.local'],
             [
                 'organization_id' => $organization->id,
-                'name' => 'Isaias Dyvinus',
+                'name' => 'Isaias Dyvinuss',
                 'password' => 'demo12345',
                 'role' => 'owner',
                 'active' => true,

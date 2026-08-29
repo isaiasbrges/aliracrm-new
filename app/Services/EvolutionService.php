@@ -61,6 +61,23 @@ class EvolutionService
                 'text' => $text,
             ]);
 
+            // Se falhar e for dyvinuss-looks ou dyvinus, tenta com o nome alternativo
+            if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
+                $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
+                $altUrl = "{$this->baseUrl}/message/sendText/{$altInstance}";
+                $altResponse = Http::withHeaders([
+                    'apikey' => $this->globalApiKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(15)->post($altUrl, [
+                    'number' => $cleanNumber,
+                    'text' => $text,
+                ]);
+
+                if ($altResponse->successful()) {
+                    return ['success' => true, 'data' => $altResponse->json()];
+                }
+            }
+
             if ($response->successful()) {
                 Log::info("WhatsApp enviado com sucesso para {$cleanNumber} via instância {$instanceName}");
                 return ['success' => true, 'data' => $response->json()];
