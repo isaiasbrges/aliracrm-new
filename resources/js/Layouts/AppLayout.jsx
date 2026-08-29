@@ -135,38 +135,31 @@ export default function AppLayout({ title, children }) {
                     </button>
                 </div>
 
-                {/* Workspace Badge & Store Manager */}
+                {/* Store Branding Box */}
                 <div className={`px-4 py-3.5 ${sidebarCollapsed ? 'hidden lg:block lg:px-2' : ''}`}>
-                    <Link
-                        href="/configuracoes/loja"
-                        title="Gerenciar / Criar Lojas e Filiais"
-                        className={`bg-slate-800/50 hover:bg-slate-800/90 border border-slate-700/60 hover:border-slate-600 rounded-xl p-3 flex items-center justify-between gap-3 transition-all shadow-inner group ${sidebarCollapsed ? 'lg:justify-center lg:p-2' : ''}`}
+                    <div
+                        className={`bg-slate-800/50 border border-slate-700/60 rounded-xl p-3 flex items-center justify-between gap-3 shadow-inner ${sidebarCollapsed ? 'lg:justify-center lg:p-2' : ''}`}
                     >
                         <div className="flex items-center gap-2.5 min-w-0">
                             <div
                                 className="w-8 h-8 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-md"
                                 style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}99)` }}
                             >
-                                {organization?.name ? organization.name.substring(0, 2).toUpperCase() : 'AL'}
+                                {store?.name ? store.name.substring(0, 2).toUpperCase() : 'DY'}
                             </div>
                             {!sidebarCollapsed && (
                                 <div className="min-w-0 flex-1">
                                     <h4 className="text-xs font-semibold text-white truncate tracking-tight">
-                                        {organization?.name || 'Alira Enterprise'}
+                                        {store?.name || 'Dyvinus'}
                                     </h4>
                                     <p className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                                        {store?.name || 'Loja Matriz'}
+                                        WhatsApp Conectado
                                     </p>
                                 </div>
                             )}
                         </div>
-                        {!sidebarCollapsed && (
-                            <span className="text-[10px] bg-slate-700 text-slate-300 group-hover:bg-blue-600 group-hover:text-white px-2 py-0.5 rounded-md font-semibold transition-colors shrink-0">
-                                Lojas
-                            </span>
-                        )}
-                    </Link>
+                    </div>
                 </div>
 
                 {/* Navigation */}
