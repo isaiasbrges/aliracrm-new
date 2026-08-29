@@ -473,8 +473,18 @@ export default function SalesCreate({ products, customers: initialCustomers, sel
             alert('Adicione ao menos um produto ao carrinho antes de finalizar a venda.');
             return;
         }
-        const itemsPayload = cart.map((item) => ({ variant_id: item.variant_id, quantity: item.quantity }));
-        post('/vendas', { data: { ...data, items: itemsPayload } });
+        const itemsPayload = cart.map((item) => ({
+            variant_id: item.variant_id,
+            quantity: item.quantity,
+        }));
+
+        router.post('/vendas', {
+            customer_id: data.customer_id ? parseInt(data.customer_id, 10) : null,
+            payment_method: data.payment_method,
+            items: itemsPayload,
+        }, {
+            preserveScroll: true,
+        });
     };
 
     // Called when a new customer is created from the modal
