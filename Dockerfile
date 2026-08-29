@@ -24,18 +24,28 @@ WORKDIR /var/www/html
 
 USER root
 
-# Instalar dependências adicionais se necessário (ex: postgres)
+# Instalar dependências adicionais
 RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
+# Copiar apenas arquivos do Composer primeiro para cachear as dependências
+COPY --chown=www-data:www-data composer.json composer.lock ./
+
+USER www-data
+
+# Instalar pacotes com retry/prefer-dist para evitar timeouts de rede
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-progress --no-interaction
 
 # Copiar código-fonte da aplicação
 COPY --chown=www-data:www-data . .
 
-# Copiar assets gerados pelo Vite no stage anterior (Isso corrige o erro do mix-manifest)
+# Copiar assets gerados pelo Vite
 COPY --chown=www-data:www-data --from=frontend /app/public/build ./public/build
+
+# Gerar autoload otimizado
+RUN composer dump-autoload --optimize --no-dev
+
+USER root
 # Remover qualquer .env para forçar Laravel a usar variáveis de ambiente do Coolify
 RUN rm -f .env .env.example .env.production
 
 USER www-data
-
-# Instalar dependências PHP e otimizar
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
