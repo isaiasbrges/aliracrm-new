@@ -27,7 +27,6 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Dyvinuss Looks',
                 'active' => true,
                 'accent_color' => '#ff007f',
-                'whatsapp' => '5511999999999',
             ],
         );
         StoreCounter::query()->firstOrCreate(['store_id' => $storeDyvinus->id], ['last_number' => 100]);
