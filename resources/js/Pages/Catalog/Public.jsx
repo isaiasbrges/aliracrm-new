@@ -22,6 +22,21 @@ import {
     ShieldCheck,
 } from 'lucide-react';
 
+/* ── Utility: hex → "r g b" for CSS color-mix ── */
+function hexToRgb(hex = '#ff007f') {
+    const h = (hex || '#ff007f').replace('#', '');
+    if (h.length === 3) {
+        const r = parseInt(h[0] + h[0], 16);
+        const g = parseInt(h[1] + h[1], 16);
+        const b = parseInt(h[2] + h[2], 16);
+        return `${r} ${g} ${b}`;
+    }
+    const r = parseInt(h.slice(0, 2), 16) || 255;
+    const g = parseInt(h.slice(2, 4), 16) || 0;
+    const b = parseInt(h.slice(4, 6), 16) || 127;
+    return `${r} ${g} ${b}`;
+}
+
 export default function PublicCatalog({ store, products, categories, filters }) {
     const [searchTerm, setSearchTerm] = useState(filters?.search || '');
     const [selectedCategory, setSelectedCategory] = useState(filters?.category || '');
@@ -33,9 +48,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
     const [modalQty, setModalQty] = useState(1);
     const [copied, setCopied] = useState(false);
 
-    // Cor Pink vibrante idêntica à referência da loja
-    const brandPink = '#ff007f';
-    const storeName = store?.name || 'Dyvinuss Looks';
+    // Cor global dinâmica da loja definida no painel
+    const brandColor = store?.accent_color || '#ff007f';
+    const storeName  = store?.name || 'Dyvinuss Looks';
+    const logoUrl    = store?.logo_url || null;
 
     const formatCurrency = (val) => {
         return new Intl.NumberFormat('pt-BR', {
@@ -74,25 +90,27 @@ export default function PublicCatalog({ store, products, categories, filters }) 
 
     const openProductModal = (product) => {
         setSelectedProduct(product);
-        setModalSize(product.variants?.[0]?.size || 'M');
+        setModalSize('M');
         setModalQty(1);
     };
 
     const addToBagFromModal = () => {
         if (!selectedProduct) return;
-        const variant = selectedProduct.variants?.find((v) => v.size === modalSize) || selectedProduct.variants?.[0];
-        const itemKey = `${selectedProduct.id}-${modalSize}`;
+        const key = `${selectedProduct.id}-${modalSize}`;
+        const existing = bag.find((i) => i.key === key);
 
-        const existing = bag.find((i) => i.key === itemKey);
         if (existing) {
-            setBag(bag.map((i) => (i.key === itemKey ? { ...i, qty: i.qty + modalQty } : i)));
+            setBag(
+                bag.map((i) =>
+                    i.key === key ? { ...i, qty: i.qty + modalQty } : i
+                )
+            );
         } else {
             setBag([
                 ...bag,
                 {
-                    key: itemKey,
+                    key,
                     product: selectedProduct,
-                    variant: variant,
                     size: modalSize,
                     qty: modalQty,
                     price: selectedProduct.price,
@@ -106,17 +124,17 @@ export default function PublicCatalog({ store, products, categories, filters }) 
 
     const addToBagQuick = (product, e) => {
         e.stopPropagation();
-        const itemKey = `${product.id}-default`;
-        const existing = bag.find((i) => i.key === itemKey);
+        const key = `${product.id}-M`;
+        const existing = bag.find((i) => i.key === key);
+
         if (existing) {
-            setBag(bag.map((i) => (i.key === itemKey ? { ...i, qty: i.qty + 1 } : i)));
+            setBag(bag.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i)));
         } else {
             setBag([
                 ...bag,
                 {
-                    key: itemKey,
-                    product: product,
-                    variant: product.variants?.[0] || null,
+                    key,
+                    product,
                     size: product.variants?.[0]?.size || 'M',
                     qty: 1,
                     price: product.price,
@@ -146,7 +164,7 @@ export default function PublicCatalog({ store, products, categories, filters }) 
     const handleWhatsAppCheckout = () => {
         if (bag.length === 0) return;
 
-        let message = `Olá, Dyvinuss Looks! ✨ Gostaria de fazer o pedido dos seguintes looks do catálogo:\n\n`;
+        let message = `Olá, ${storeName}! ✨ Gostaria de fazer o pedido dos seguintes looks do catálogo:\n\n`;
         bag.forEach((item, index) => {
             message += `${index + 1}. *${item.product.name}*\n`;
             message += `   • Tamanho: ${item.size}\n`;
@@ -162,27 +180,48 @@ export default function PublicCatalog({ store, products, categories, filters }) 
         window.open(url, '_blank');
     };
 
-    // Lista fixa de categorias da barra lateral conforme o modelo de referência
-    const defaultSidebarCategories = [
-        'Body', 'Saia', 'Cropped', 'Macacão', 'Calça', 'Vestido',
-        'Conjunto', 'Body | Maiô', 'Biquíni', 'Shorts', 'Shorts saia',
-        'Blusinha', 'T-shirt', 'Teddy', 'Tricô', 'Blusa moletom',
-        'Camisa', 'Macaquinho', 'Tênis', 'Jaqueta'
-    ];
+    // Categorias dinâmicas vindas do banco ou lista padrão de boutique
+    const sidebarCategories = (categories && categories.length > 0)
+        ? categories.map(c => c.name)
+        : [
+            'Body', 'Saia', 'Cropped', 'Macacão', 'Calça', 'Vestido',
+            'Conjunto', 'Body | Maiô', 'Biquíni', 'Shorts', 'Shorts saia',
+            'Blusinha', 'T-shirt', 'Teddy', 'Tricô', 'Blusa moletom',
+            'Camisa', 'Macaquinho', 'Tênis', 'Jaqueta'
+        ];
 
     return (
-        <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-[#ff007f] selection:text-white">
+        <div
+            className="min-h-screen bg-white text-slate-900 font-sans"
+            style={{
+                '--brand': brandColor,
+                '--brand-rgb': hexToRgb(brandColor),
+            }}
+        >
             <Head title={`${storeName} - Catálogo de Looks Exclusivos`} />
 
-            {/* ── HEADER VIBRANTE PINK (EXATAMENTE COMO A REFERÊNCIA) ── */}
-            <header className="bg-[#ff007f] sticky top-0 z-40 shadow-md">
+            {/* ── HEADER GLOBAL DA LOJA COM COR DINÂMICA ── */}
+            <header
+                className="sticky top-0 z-40 shadow-md transition-colors duration-300"
+                style={{ background: brandColor }}
+            >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-4">
                     {/* Logo / Emblema da Loja */}
                     <div className="flex items-center gap-3 shrink-0">
-                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/40 flex flex-col items-center justify-center text-white shadow-inner">
-                            <span className="font-['Space_Grotesk'] font-black text-sm tracking-wider leading-none">DY</span>
-                            <span className="text-[7px] uppercase tracking-widest font-bold mt-0.5">Looks</span>
-                        </div>
+                        {logoUrl ? (
+                            <img
+                                src={logoUrl}
+                                alt={storeName}
+                                className="w-12 h-12 rounded-2xl object-contain bg-white p-1 shadow-md border border-white/40"
+                            />
+                        ) : (
+                            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/40 flex flex-col items-center justify-center text-white shadow-inner">
+                                <span className="font-['Space_Grotesk'] font-black text-sm tracking-wider leading-none">
+                                    {storeName.substring(0, 2).toUpperCase()}
+                                </span>
+                                <span className="text-[7px] uppercase tracking-widest font-bold mt-0.5">Looks</span>
+                            </div>
+                        )}
                         <div className="hidden sm:block text-white">
                             <h1 className="font-['Space_Grotesk'] font-extrabold text-base tracking-tight leading-tight">
                                 {storeName}
@@ -200,11 +239,12 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="O que você procura?"
-                            className="w-full bg-white text-slate-800 placeholder-slate-400 text-xs sm:text-sm px-5 sm:px-6 py-2.5 sm:py-3 rounded-full outline-none shadow-sm text-center focus:ring-2 focus:ring-white/40 transition"
+                            className="w-full bg-white text-slate-800 placeholder-slate-400 text-xs sm:text-sm px-5 sm:px-6 py-2.5 sm:py-3 rounded-full outline-none shadow-sm text-center focus:ring-2 focus:ring-white/50 transition"
                         />
                         <button
                             type="submit"
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#ff007f] transition p-1"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:opacity-80 transition p-1"
+                            style={{ color: brandColor }}
                         >
                             <Search className="w-4 h-4" />
                         </button>
@@ -218,7 +258,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                         <div className="relative">
                             <ShoppingBag className="w-5 h-5" />
                             {bagCount > 0 && (
-                                <span className="absolute -top-2 -right-2 bg-white text-[#ff007f] text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                                <span
+                                    className="absolute -top-2 -right-2 bg-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-xs"
+                                    style={{ color: brandColor }}
+                                >
                                     {bagCount}
                                 </span>
                             )}
@@ -234,33 +277,38 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                     {/* COLUNA ESQUERDA: TODAS AS CATEGORIAS (SIDEBAR) */}
                     <aside className="lg:col-span-3">
                         <div className="sticky top-28 bg-white pr-4">
-                            <h2 className="text-[#ff007f] font-bold font-['Space_Grotesk'] text-lg sm:text-xl mb-4 tracking-tight">
+                            <h2
+                                className="font-bold font-['Space_Grotesk'] text-lg sm:text-xl mb-4 tracking-tight"
+                                style={{ color: brandColor }}
+                            >
                                 Todas as Categorias
                             </h2>
 
                             <nav className="space-y-1.5 text-xs sm:text-sm">
                                 <button
                                     onClick={() => handleCategoryClick('')}
-                                    className={`w-full text-left py-1 px-2 rounded-lg transition font-medium ${
+                                    className={`w-full text-left py-1.5 px-3 rounded-xl transition font-medium ${
                                         selectedCategory === ''
-                                            ? 'text-[#ff007f] font-bold bg-pink-50'
-                                            : 'text-slate-600 hover:text-[#ff007f] hover:translate-x-1'
+                                            ? 'font-bold text-white shadow-xs'
+                                            : 'text-slate-600 hover:translate-x-1'
                                     }`}
+                                    style={selectedCategory === '' ? { background: brandColor } : {}}
                                 >
                                     Todos os Looks
                                 </button>
 
-                                {defaultSidebarCategories.map((cName, idx) => {
+                                {sidebarCategories.map((cName, idx) => {
                                     const isSelected = selectedCategory === cName;
                                     return (
                                         <button
                                             key={idx}
                                             onClick={() => handleCategoryClick(cName)}
-                                            className={`w-full text-left py-1 px-2 rounded-lg transition font-medium block ${
+                                            className={`w-full text-left py-1.5 px-3 rounded-xl transition font-medium block ${
                                                 isSelected
-                                                    ? 'text-[#ff007f] font-bold bg-pink-50'
-                                                    : 'text-slate-600 hover:text-[#ff007f] hover:translate-x-1'
+                                                    ? 'font-bold text-white shadow-xs'
+                                                    : 'text-slate-600 hover:translate-x-1'
                                             }`}
+                                            style={isSelected ? { background: brandColor } : {}}
                                         >
                                             {cName}
                                         </button>
@@ -285,7 +333,7 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                 <select
                                     value={selectedSort}
                                     onChange={(e) => handleSortChange(e.target.value)}
-                                    className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 outline-none focus:border-[#ff007f] transition cursor-pointer"
+                                    className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 outline-none transition cursor-pointer"
                                 >
                                     <option value="default">Destaques</option>
                                     <option value="lowest_price">Menor Preço</option>
@@ -317,7 +365,8 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                                 {/* Botão Rápido Flutuante de Adicionar */}
                                                 <button
                                                     onClick={(e) => addToBagQuick(product, e)}
-                                                    className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-[#ff007f] shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0 active:scale-95"
+                                                    className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0 active:scale-95"
+                                                    style={{ color: brandColor }}
                                                     title="Adicionar à sacola"
                                                 >
                                                     <Plus className="w-5 h-5" />
@@ -330,14 +379,17 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                                     {product.name}
                                                 </h3>
 
-                                                {/* Preços (Riscado + Preço Pink) */}
+                                                {/* Preços (Riscado + Preço com a Cor Global da Loja) */}
                                                 <div className="flex flex-col mt-0.5">
                                                     {product.original_price && (
                                                         <span className="text-[11px] text-slate-400 line-through">
                                                             {formatCurrency(product.original_price)}
                                                         </span>
                                                     )}
-                                                    <span className="text-xs sm:text-sm font-bold text-[#ff007f]">
+                                                    <span
+                                                        className="text-xs sm:text-sm font-bold"
+                                                        style={{ color: brandColor }}
+                                                    >
                                                         {formatCurrency(product.price)}
                                                     </span>
                                                 </div>
@@ -348,7 +400,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                             </div>
                         ) : (
                             <div className="p-16 text-center bg-slate-50 rounded-3xl border border-slate-200">
-                                <div className="w-14 h-14 rounded-2xl bg-pink-100 text-[#ff007f] flex items-center justify-center mx-auto mb-3">
+                                <div
+                                    className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 text-white"
+                                    style={{ background: brandColor }}
+                                >
                                     <ShoppingBag className="w-7 h-7" />
                                 </div>
                                 <h3 className="font-bold text-slate-800 text-base">
@@ -359,7 +414,8 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                 </p>
                                 <button
                                     onClick={() => handleCategoryClick('')}
-                                    className="mt-4 px-4 py-2 bg-[#ff007f] text-white text-xs font-bold rounded-xl shadow-xs"
+                                    className="mt-4 px-4 py-2 text-white text-xs font-bold rounded-xl shadow-xs"
+                                    style={{ background: brandColor }}
                                 >
                                     Ver Todos os Looks
                                 </button>
@@ -392,8 +448,11 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                         {/* Detalhes & Seletores */}
                         <div className="flex flex-col justify-between">
                             <div>
-                                <span className="text-[11px] font-bold text-[#ff007f] uppercase tracking-wider">
-                                    Dyvinuss Looks
+                                <span
+                                    className="text-[11px] font-bold uppercase tracking-wider"
+                                    style={{ color: brandColor }}
+                                >
+                                    {storeName}
                                 </span>
                                 <h2 className="text-xl font-bold font-['Space_Grotesk'] text-slate-900 capitalize mt-1">
                                     {selectedProduct.name}
@@ -405,7 +464,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                             {formatCurrency(selectedProduct.original_price)}
                                         </span>
                                     )}
-                                    <span className="text-xl font-extrabold text-[#ff007f]">
+                                    <span
+                                        className="text-xl font-extrabold"
+                                        style={{ color: brandColor }}
+                                    >
                                         {formatCurrency(selectedProduct.price)}
                                     </span>
                                 </div>
@@ -423,9 +485,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                                 onClick={() => setModalSize(size)}
                                                 className={`w-11 h-11 rounded-xl text-xs font-bold transition flex items-center justify-center ${
                                                     modalSize === size
-                                                        ? 'bg-[#ff007f] text-white shadow-md shadow-pink-600/30 ring-2 ring-[#ff007f]/40'
+                                                        ? 'text-white shadow-md'
                                                         : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
                                                 }`}
+                                                style={modalSize === size ? { background: brandColor, boxShadow: `0 4px 12px rgba(${hexToRgb(brandColor)}, 0.35)` } : {}}
                                             >
                                                 {size}
                                             </button>
@@ -462,7 +525,11 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                             <button
                                 type="button"
                                 onClick={addToBagFromModal}
-                                className="w-full py-3 rounded-2xl bg-[#ff007f] hover:bg-[#e11d48] text-white text-xs font-bold shadow-lg shadow-pink-600/30 transition transform active:scale-95 flex items-center justify-center gap-2"
+                                className="w-full py-3 rounded-2xl text-white text-xs font-bold shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
+                                style={{
+                                    background: brandColor,
+                                    boxShadow: `0 6px 20px rgba(${hexToRgb(brandColor)}, 0.35)`
+                                }}
                             >
                                 <ShoppingBag className="w-4 h-4" />
                                 Adicionar à Sacola · {formatCurrency(selectedProduct.price * modalQty)}
@@ -477,7 +544,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex justify-end">
                     <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
                         {/* Header do Carrinho */}
-                        <div className="p-4 bg-[#ff007f] text-white flex items-center justify-between">
+                        <div
+                            className="p-4 text-white flex items-center justify-between"
+                            style={{ background: brandColor }}
+                        >
                             <div className="flex items-center gap-2">
                                 <ShoppingBag className="w-5 h-5" />
                                 <h3 className="font-bold font-['Space_Grotesk'] text-base">
@@ -509,7 +579,10 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                             <p className="text-[11px] text-slate-500">
                                                 Tamanho: <span className="font-bold text-slate-700">{item.size}</span>
                                             </p>
-                                            <p className="text-xs font-bold text-[#ff007f] mt-1">
+                                            <p
+                                                className="text-xs font-bold mt-1"
+                                                style={{ color: brandColor }}
+                                            >
                                                 {formatCurrency(item.price * item.qty)}
                                             </p>
                                         </div>
@@ -519,14 +592,14 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                                 onClick={() => updateQty(item.key, -1)}
                                                 className="w-6 h-6 rounded bg-white text-slate-600 shadow-2xs flex items-center justify-center"
                                             >
-                                                <Minus className="w-3 h-3" />
+                                                <Minus className="w-3.5 h-3.5" />
                                             </button>
                                             <span className="text-xs font-bold px-1.5">{item.qty}</span>
                                             <button
                                                 onClick={() => updateQty(item.key, 1)}
                                                 className="w-6 h-6 rounded bg-white text-slate-600 shadow-2xs flex items-center justify-center"
                                             >
-                                                <Plus className="w-3 h-3" />
+                                                <Plus className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
                                     </div>
@@ -537,7 +610,8 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                                     <p className="text-xs">Sua sacola está vazia.</p>
                                     <button
                                         onClick={() => setIsBagOpen(false)}
-                                        className="mt-4 px-4 py-2 bg-[#ff007f] text-white text-xs font-bold rounded-xl"
+                                        className="mt-4 px-4 py-2 text-white text-xs font-bold rounded-xl"
+                                        style={{ background: brandColor }}
                                     >
                                         Explorar Looks
                                     </button>
@@ -550,7 +624,12 @@ export default function PublicCatalog({ store, products, categories, filters }) 
                             <div className="p-4 border-t border-slate-100 bg-slate-50 space-y-3">
                                 <div className="flex items-center justify-between text-sm font-bold text-slate-900 font-['Space_Grotesk']">
                                     <span>Total:</span>
-                                    <span className="text-lg text-[#ff007f]">{formatCurrency(bagTotal)}</span>
+                                    <span
+                                        className="text-lg font-extrabold"
+                                        style={{ color: brandColor }}
+                                    >
+                                        {formatCurrency(bagTotal)}
+                                    </span>
                                 </div>
 
                                 <button

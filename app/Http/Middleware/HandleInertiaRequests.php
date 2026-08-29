@@ -58,7 +58,7 @@ class HandleInertiaRequests extends Middleware
                 'id'           => $store->id,
                 'name'         => $store->name,
                 'slug'         => $store->slug,
-                'accent_color' => $store->accent_color ?? '#2563eb',
+                'accent_color' => $store->accent_color ?: '#ff007f',
                 'logo_url'     => $store->logo_url,
             ] : null,
             'stores' => $organization ? $organization->stores()->where('active', true)->get(['id', 'name', 'slug']) : [],
