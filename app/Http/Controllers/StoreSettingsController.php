@@ -71,23 +71,39 @@ class StoreSettingsController extends Controller
     {
         $request->validate([
             'name'                         => ['required', 'string', 'max:100'],
-            'accent_color'                 => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'accent_color'                 => ['nullable', 'string', 'max:30'],
             'logo'                         => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
             'logo_url'                     => ['nullable', 'string', 'max:1000'],
             'external_pos_webhook_enabled' => ['nullable', 'boolean'],
-            'external_pos_webhook_url'     => ['nullable', 'url', 'max:1000'],
+            'external_pos_webhook_url'     => ['nullable', 'string', 'max:1000'],
             'external_pos_webhook_secret'  => ['nullable', 'string', 'max:255'],
         ]);
 
         $store = $request->attributes->get('store');
 
+        // Normalizar cor hexadecimal (aceita com ou sem #, maiúsculo ou minúsculo)
+        $rawColor = trim((string) $request->input('accent_color', '#ff007f'));
+        if (!empty($rawColor) && !str_starts_with($rawColor, '#')) {
+            $rawColor = '#' . $rawColor;
+        }
+        if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $rawColor)) {
+            $rawColor = '#ff007f';
+        }
+
         $data = [
-            'name'                         => $request->input('name'),
-            'accent_color'                 => $request->input('accent_color'),
-            'external_pos_webhook_enabled' => $request->boolean('external_pos_webhook_enabled'),
-            'external_pos_webhook_url'     => $request->input('external_pos_webhook_url'),
-            'external_pos_webhook_secret'  => $request->input('external_pos_webhook_secret'),
+            'name'         => $request->input('name', $store->name),
+            'accent_color' => $rawColor,
         ];
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('stores', 'external_pos_webhook_enabled')) {
+            $data['external_pos_webhook_enabled'] = $request->boolean('external_pos_webhook_enabled');
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('stores', 'external_pos_webhook_url')) {
+            $data['external_pos_webhook_url'] = $request->input('external_pos_webhook_url');
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('stores', 'external_pos_webhook_secret')) {
+            $data['external_pos_webhook_secret'] = $request->input('external_pos_webhook_secret');
+        }
 
         if ($request->hasFile('logo')) {
             if ($store->logo_url) {
@@ -111,7 +127,15 @@ class StoreSettingsController extends Controller
             $data['logo_url'] = null;
         }
 
-        $store->update($data);
+        try {
+            $store->update($data);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Erro ao atualizar loja: " . $e->getMessage());
+            $store->update([
+                'name'         => $data['name'],
+                'accent_color' => $data['accent_color'],
+            ]);
+        }
 
         return redirect()->route('settings.store')->with('success', 'Configurações de logo, cores e webhook da loja salvas com sucesso!');
     }

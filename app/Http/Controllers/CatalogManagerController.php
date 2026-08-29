@@ -212,14 +212,22 @@ class CatalogManagerController extends Controller
 
         $request->validate([
             'name'         => ['required', 'string', 'max:100'],
-            'accent_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'accent_color' => ['nullable', 'string', 'max:30'],
             'logo'         => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
             'logo_url'     => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $rawColor = trim((string) $request->input('accent_color', '#ff007f'));
+        if (!empty($rawColor) && !str_starts_with($rawColor, '#')) {
+            $rawColor = '#' . $rawColor;
+        }
+        if (!preg_match('/^#[0-9a-fA-F]{3,8}$/', $rawColor)) {
+            $rawColor = '#ff007f';
+        }
+
         $data = [
-            'name'         => $request->input('name'),
-            'accent_color' => $request->input('accent_color'),
+            'name'         => $request->input('name', $store->name),
+            'accent_color' => $rawColor,
         ];
 
         if ($request->hasFile('logo')) {

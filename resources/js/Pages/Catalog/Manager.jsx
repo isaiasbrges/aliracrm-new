@@ -529,21 +529,40 @@ export default function CatalogManager({ store, products, categories, live_url }
                                     ))}
                                 </div>
 
-                                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                                    <input
-                                        type="color"
-                                        value={brandData.accent_color}
-                                        onChange={(e) => setBrandData('accent_color', e.target.value)}
-                                        className="w-9 h-9 rounded-xl cursor-pointer border-none p-0 bg-transparent"
-                                    />
-                                    <div className="flex-1">
-                                        <p className="text-[11px] font-bold text-slate-700">Cor Hexadecimal Personalizada:</p>
+                                <div className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                                    <div className="relative">
                                         <input
-                                            type="text"
-                                            value={brandData.accent_color}
-                                            onChange={(e) => setBrandData('accent_color', e.target.value)}
-                                            className="font-mono text-xs font-bold uppercase text-slate-900 bg-transparent outline-none mt-0.5"
+                                            type="color"
+                                            value={brandData.accent_color.startsWith('#') && brandData.accent_color.length === 7 ? brandData.accent_color : '#ff007f'}
+                                            onChange={(e) => {
+                                                let clean = (e.target.value || '').trim();
+                                                if (clean && !clean.startsWith('#')) clean = '#' + clean;
+                                                setBrandData('accent_color', clean);
+                                            }}
+                                            className="w-11 h-11 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shadow-2xs"
+                                            title="Clique para abrir a paleta de cores"
                                         />
+                                    </div>
+
+                                    <div className="flex-1">
+                                        <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                            Código Hexadecimal:
+                                        </label>
+                                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl focus-within:border-slate-800 transition">
+                                            <span className="text-xs font-mono font-bold text-slate-400">#</span>
+                                            <input
+                                                type="text"
+                                                value={brandData.accent_color.replace(/^#/, '')}
+                                                onChange={(e) => {
+                                                    let clean = (e.target.value || '').trim();
+                                                    if (clean && !clean.startsWith('#')) clean = '#' + clean;
+                                                    setBrandData('accent_color', clean);
+                                                }}
+                                                placeholder="ff007f"
+                                                maxLength={7}
+                                                className="w-full font-mono text-xs font-bold uppercase text-slate-900 bg-transparent outline-none tracking-wider"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>

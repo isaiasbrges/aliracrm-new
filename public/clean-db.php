@@ -16,10 +16,13 @@ $kernel->bootstrap();
 header('Content-Type: text/html; charset=utf-8');
 
 try {
-    // 1. Limpar tabelas mantendo estrutura
+    // 1. Executar migrações pendentes para garantir todas as colunas
+    Artisan::call('migrate', ['--force' => true]);
+
+    // 2. Limpar tabelas mantendo estrutura
     DB::statement('TRUNCATE TABLE sale_items, sales, deals, messages, conversations, product_variants, products, categories, customers RESTART IDENTITY CASCADE;');
 
-    // 2. Rodar o Seeder limpo (apenas organização, loja Dyvinuss Looks, categorias e produtos da vitrine)
+    // 3. Rodar o Seeder limpo (apenas organização, loja Dyvinuss Looks, categorias e produtos da vitrine)
     Artisan::call('db:seed', ['--force' => true]);
     $seedOutput = Artisan::output();
 

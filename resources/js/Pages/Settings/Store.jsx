@@ -115,7 +115,11 @@ export default function StoreSettings({ store, organization, stores, evolution, 
     });
 
     const handleColorChange = (color) => {
-        setData('accent_color', color);
+        let clean = (color || '').trim();
+        if (clean && !clean.startsWith('#')) {
+            clean = '#' + clean;
+        }
+        setData('accent_color', clean);
     };
 
     const handleFileChange = (e) => {
@@ -330,21 +334,32 @@ export default function StoreSettings({ store, organization, stores, evolution, 
                                         ))}
                                     </div>
 
-                                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-                                        <input
-                                            type="color"
-                                            value={data.accent_color}
-                                            onChange={(e) => handleColorChange(e.target.value)}
-                                            className="w-9 h-9 rounded-xl cursor-pointer border-none p-0 bg-transparent"
-                                        />
-                                        <div className="flex-1">
-                                            <p className="text-[11px] font-bold text-slate-700">Seletor de Cor Hexadecimal Livre:</p>
+                                    <div className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                                        <div className="relative">
                                             <input
-                                                type="text"
-                                                value={data.accent_color}
+                                                type="color"
+                                                value={data.accent_color.startsWith('#') && data.accent_color.length === 7 ? data.accent_color : '#ff007f'}
                                                 onChange={(e) => handleColorChange(e.target.value)}
-                                                className="font-mono text-xs font-bold uppercase text-slate-900 bg-transparent outline-none mt-0.5"
+                                                className="w-11 h-11 rounded-xl cursor-pointer border border-slate-200 p-0.5 bg-white shadow-2xs"
+                                                title="Clique para abrir a paleta de cores"
                                             />
+                                        </div>
+
+                                        <div className="flex-1">
+                                            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                                                Código Hexadecimal:
+                                            </label>
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl focus-within:border-slate-800 transition">
+                                                <span className="text-xs font-mono font-bold text-slate-400">#</span>
+                                                <input
+                                                    type="text"
+                                                    value={data.accent_color.replace(/^#/, '')}
+                                                    onChange={(e) => handleColorChange(e.target.value)}
+                                                    placeholder="ff007f"
+                                                    maxLength={7}
+                                                    className="w-full font-mono text-xs font-bold uppercase text-slate-900 bg-transparent outline-none tracking-wider"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                     {errors.accent_color && <p className="text-xs text-rose-600 mt-1">{errors.accent_color}</p>}
