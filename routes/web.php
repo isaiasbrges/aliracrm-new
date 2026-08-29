@@ -28,6 +28,9 @@ Route::get('/loja/{slug}', function (Request $request, string $slug) {
 
     if ($request->user()) {
         if ($store->organization_id === $request->user()->organization_id) {
+            if ($request->user()->role === 'seller' && $request->user()->last_store_id && $request->user()->last_store_id !== $store->id) {
+                abort(403, "Seu usuário está vinculado exclusivamente à filial designada.");
+            }
             $request->user()->forceFill(['last_store_id' => $store->id])->saveQuietly();
             return redirect()->route('dashboard')->with('success', "Acessando a filial '{$store->name}'");
         }

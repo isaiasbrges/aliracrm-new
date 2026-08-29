@@ -153,6 +153,10 @@ class StoreSettingsController extends Controller
             abort(403, 'Acesso não autorizado a esta loja.');
         }
 
+        if ($user->role === 'seller') {
+            abort(403, 'Vendedores não possuem permissão para alternar de filial.');
+        }
+
         $user->forceFill(['last_store_id' => $store->id])->saveQuietly();
 
         return redirect()->back()->with('success', "Alternado para a loja '{$store->name}' com sucesso!");
