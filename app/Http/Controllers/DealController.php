@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Deal;
+use App\Models\Message;
+use App\Services\EvolutionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,10 +14,15 @@ use Inertia\Response;
 
 class DealController extends Controller
 {
+    public function __construct(
+        protected EvolutionService $evolutionService
+    ) {}
+
     public function index(Request $request): Response
     {
         $organizationId = $request->user()->organization_id;
-        $storeId = $request->attributes->get('store')->id;
+        $store = $request->attributes->get('store');
+        $storeId = $store->id;
 
         $stages = [
             'lead'        => ['label' => 'Novos Leads',       'color' => '#3b82f6'],
@@ -62,7 +70,6 @@ class DealController extends Controller
         }
 
         // ── Recency Segments ──────────────────────────────────────────
-        // Customers that have bought at least once, segmented by days since last purchase
         $customersWithPurchase = Customer::query()
             ->where('organization_id', $organizationId)
             ->where('store_id', $storeId)
@@ -171,5 +178,230 @@ class DealController extends Controller
         $deal->delete();
 
         return redirect()->route('deals.index')->with('success', 'Oportunidade removida com sucesso.');
+    }
+
+    /**
+     * Disparo individual de WhatsApp direto do Card do Funil
+     */
+    public function sendWhatsApp(Request $request, Deal $deal): RedirectResponse
+    {
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+        $storeId = $store->id;
+
+        if ($deal->organization_id !== $organizationId || $deal->store_id !== $storeId) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'max:5000'],
+            'advance_stage' => ['nullable', 'string', 'in:contacted,proposal,negotiation,won,lost'],
+        ]);
+
+        $customer = $deal->customer;
+        if (!$customer || empty($customer->whatsapp)) {
+            return back()->withErrors(['message' => 'Esta oportunidade não possui cliente ou WhatsApp vinculado.']);
+        }
+
+        // Criar ou localizar conversa no CRM
+        $conversation = Conversation::firstOrCreate(
+            [
+                'organization_id'  => $organizationId,
+                'store_id'         => $storeId,
+                'external_chat_id' => $customer->whatsapp,
+            ],
+            [
+                'customer_id'          => $customer->id,
+                'channel'              => 'whatsapp',
+                'status'               => 'open',
+                'priority'             => 'normal',
+                'subject'              => 'Atendimento · ' . $deal->title,
+                'last_message_preview' => $data['message'],
+                'last_message_at'      => now(),
+            ]
+        );
+
+        // Gravar mensagem
+        Message::create([
+            'organization_id' => $organizationId,
+            'conversation_id' => $conversation->id,
+            'direction'       => 'outbound',
+            'type'            => 'text',
+            'body'            => $data['message'],
+            'status'          => 'sent',
+            'from_phone'      => 'store',
+            'to_phone'        => $customer->whatsapp,
+            'sent_at'         => now(),
+        ]);
+
+        $conversation->update([
+            'last_message_preview' => $data['message'],
+            'last_message_at'      => now(),
+            'status'               => 'open',
+        ]);
+
+        // Avançar estágio se solicitado
+        if (!empty($data['advance_stage'])) {
+            $deal->update(['stage' => $data['advance_stage']]);
+        }
+
+        // Disparo real via Evolution API
+        $instanceName = $store->slug ?? 'dyvinus';
+        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $data['message']);
+
+        return redirect()->route('deals.index')
+            ->with('success', "WhatsApp disparado com sucesso para {$customer->name}!");
+    }
+
+    /**
+     * Disparo em massa para múltiplos cards de uma coluna do Funil
+     */
+    public function bulkSendWhatsApp(Request $request): RedirectResponse
+    {
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+        $storeId = $store->id;
+
+        $data = $request->validate([
+            'deal_ids' => ['required', 'array', 'min:1'],
+            'deal_ids.*' => ['integer', 'exists:deals,id'],
+            'message_template' => ['required', 'string', 'max:5000'],
+            'advance_stage' => ['nullable', 'string', 'in:contacted,proposal,negotiation,won,lost'],
+        ]);
+
+        $deals = Deal::query()
+            ->with('customer')
+            ->where('organization_id', $organizationId)
+            ->where('store_id', $storeId)
+            ->whereIn('id', $data['deal_ids'])
+            ->get();
+
+        $instanceName = $store->slug ?? 'dyvinus';
+        $sentCount = 0;
+
+        foreach ($deals as $deal) {
+            $customer = $deal->customer;
+            if (!$customer || empty($customer->whatsapp)) {
+                continue;
+            }
+
+            $firstName = explode(' ', trim($customer->name))[0] ?: 'Cliente';
+            $formattedValue = 'R$ ' . number_format($deal->value, 2, ',', '.');
+
+            $personalizedMessage = str_replace(
+                ['{cliente}', '{nome}', '{valor}', '{titulo}'],
+                [$firstName, $firstName, $formattedValue, $deal->title],
+                $data['message_template']
+            );
+
+            // Criar conversa
+            $conversation = Conversation::firstOrCreate(
+                [
+                    'organization_id'  => $organizationId,
+                    'store_id'         => $storeId,
+                    'external_chat_id' => $customer->whatsapp,
+                ],
+                [
+                    'customer_id'          => $customer->id,
+                    'channel'              => 'whatsapp',
+                    'status'               => 'open',
+                    'priority'             => 'normal',
+                    'subject'              => 'Disparo Funil · ' . $deal->title,
+                    'last_message_preview' => $personalizedMessage,
+                    'last_message_at'      => now(),
+                ]
+            );
+
+            Message::create([
+                'organization_id' => $organizationId,
+                'conversation_id' => $conversation->id,
+                'direction'       => 'outbound',
+                'type'            => 'text',
+                'body'            => $personalizedMessage,
+                'status'          => 'sent',
+                'from_phone'      => 'store',
+                'to_phone'        => $customer->whatsapp,
+                'sent_at'         => now(),
+            ]);
+
+            $conversation->update([
+                'last_message_preview' => $personalizedMessage,
+                'last_message_at'      => now(),
+                'status'               => 'open',
+            ]);
+
+            if (!empty($data['advance_stage'])) {
+                $deal->update(['stage' => $data['advance_stage']]);
+            }
+
+            $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $personalizedMessage);
+            $sentCount++;
+        }
+
+        return redirect()->route('deals.index')
+            ->with('success', "Disparo concluído com sucesso para {$sentCount} oportunidades!");
+    }
+
+    /**
+     * Disparo de Reativação para cliente no Radar
+     */
+    public function sendReactivationWhatsApp(Request $request, Customer $customer): RedirectResponse
+    {
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+        $storeId = $store->id;
+
+        if ($customer->organization_id !== $organizationId || $customer->store_id !== $storeId) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'message' => ['required', 'string', 'max:5000'],
+        ]);
+
+        if (empty($customer->whatsapp)) {
+            return back()->withErrors(['message' => 'Cliente sem WhatsApp cadastrado.']);
+        }
+
+        $conversation = Conversation::firstOrCreate(
+            [
+                'organization_id'  => $organizationId,
+                'store_id'         => $storeId,
+                'external_chat_id' => $customer->whatsapp,
+            ],
+            [
+                'customer_id'          => $customer->id,
+                'channel'              => 'whatsapp',
+                'status'               => 'open',
+                'priority'             => 'normal',
+                'subject'              => 'Reativação · ' . $customer->name,
+                'last_message_preview' => $data['message'],
+                'last_message_at'      => now(),
+            ]
+        );
+
+        Message::create([
+            'organization_id' => $organizationId,
+            'conversation_id' => $conversation->id,
+            'direction'       => 'outbound',
+            'type'            => 'text',
+            'body'            => $data['message'],
+            'status'          => 'sent',
+            'from_phone'      => 'store',
+            'to_phone'        => $customer->whatsapp,
+            'sent_at'         => now(),
+        ]);
+
+        $conversation->update([
+            'last_message_preview' => $data['message'],
+            'last_message_at'      => now(),
+            'status'               => 'open',
+        ]);
+
+        $instanceName = $store->slug ?? 'dyvinus';
+        $this->evolutionService->sendMessage($instanceName, $customer->whatsapp, $data['message']);
+
+        return redirect()->route('deals.index')
+            ->with('success', "Mensagem de reativação enviada para {$customer->name}!");
     }
 }

@@ -4,14 +4,91 @@ import AppLayout from '../../Layouts/AppLayout';
 import {
     Kanban, Plus, Flame, Trash2, User, Search,
     ArrowRight, MessageCircle, AlertCircle, CheckCircle2,
-    Clock, HeartHandshake, History, CalendarDays
+    Clock, HeartHandshake, History, CalendarDays, Zap,
+    Send, Sparkles, Check, X, Phone, Tag, DollarSign,
+    Users, ChevronRight, MessageSquare
 } from 'lucide-react';
+
+/* ── Mensagens Prontas por Estágio do Funil ── */
+const STAGE_TEMPLATES = {
+    lead: [
+        {
+            title: 'Primeiro Contato & Boas-Vindas',
+            text: 'Olá {cliente}! Tudo bem? Vi seu interesse na nossa coleção e separei opções lindas que combinam perfeitamente com você. Gostaria de dar uma olhadinha?',
+            advanceTo: 'contacted',
+        },
+        {
+            title: 'Apresentação de Looks Exclusivos',
+            text: 'Oi {cliente}! Acabamos de receber novidades exclusivas na loja! Posso te enviar algumas fotos dos lançamentos?',
+            advanceTo: 'contacted',
+        },
+    ],
+    contacted: [
+        {
+            title: 'Follow-up de Interesse',
+            text: 'Olá {cliente}! Passando para saber se você conseguiu ver as peças que te enviei. Teve algum look que chamou mais sua atenção?',
+            advanceTo: 'proposal',
+        },
+        {
+            title: 'Consultoria de Estilo & Tamanhos',
+            text: 'Oi {cliente}! Temos essa peça nos tamanhos P, M e G. Se quiser, me passe suas medidas que te ajudo a escolher o caimento ideal!',
+            advanceTo: 'proposal',
+        },
+    ],
+    proposal: [
+        {
+            title: 'Acompanhamento de Proposta / Orçamento',
+            text: 'Olá {cliente}! Seu orçamento no valor de {valor} para {titulo} está prontinho com condições especiais válidas para hoje!',
+            advanceTo: 'negotiation',
+        },
+        {
+            title: 'Condição Especial por Tempo Limitado',
+            text: 'Oi {cliente}! Consigo segurar o valor de {valor} com 5% de desconto no PIX ou até 6x sem juros no cartão se fecharmos hoje. O que acha?',
+            advanceTo: 'negotiation',
+        },
+    ],
+    negotiation: [
+        {
+            title: 'Cupom de Fechamento / Frete Cortesia',
+            text: 'Oi {cliente}! Para fecharmos agora seu pedido ({titulo}), liberei o frete cortesia para seu endereço! Posso gerar seu link de pagamento?',
+            advanceTo: 'won',
+        },
+        {
+            title: 'Chave PIX para Finalizar',
+            text: 'Olá {cliente}! Podemos finalizar seu pedido de {valor}? Me confirme que já gero sua chave PIX com desconto!',
+            advanceTo: 'won',
+        },
+    ],
+    won: [
+        {
+            title: 'Agradecimento & Pós-Venda',
+            text: 'Olá {cliente}! Muito obrigado pela confiança! Seu pedido já está sendo preparado com muito carinho. Logo mais envio o rastreio! 💖',
+            advanceTo: '',
+        },
+    ],
+    reactivation: [
+        {
+            title: 'Reativação com Saudade & Novidades',
+            text: 'Oi {cliente}, estamos com saudades de você aqui na loja! Chegaram novidades incríveis e separei um presente de boas-vindas para sua próxima visita. Dá uma olhada!',
+        },
+        {
+            title: 'Cupom Exclusivo de Retorno',
+            text: 'Olá {cliente}! Preparamos um cupom especial de 10% OFF para você matar a saudade dos nossos looks. Válido até este sábado!',
+        },
+    ],
+};
 
 export default function DealsIndex({ columns, totalPipelineValue, customers, recencySegments }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [draggingDealId, setDraggingDealId] = useState(null);
     const [activeTab, setActiveTab] = useState('kanban');
 
+    // Estados para Disparo de WhatsApp
+    const [selectedDealForDispatch, setSelectedDealForDispatch] = useState(null);
+    const [selectedCustomerForReactivation, setSelectedCustomerForReactivation] = useState(null);
+    const [selectedColumnForBulk, setSelectedColumnForBulk] = useState(null);
+
+    // Form Nova Oportunidade
     const { data, setData, post, processing, reset, errors } = useForm({
         title: '',
         customer_id: '',
@@ -20,6 +97,24 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
         priority: 'medium',
         notes: '',
         expected_close_date: '',
+    });
+
+    // Form Disparo Individual
+    const singleDispatchForm = useForm({
+        message: '',
+        advance_stage: '',
+    });
+
+    // Form Disparo em Massa por Coluna
+    const bulkDispatchForm = useForm({
+        deal_ids: [],
+        message_template: '',
+        advance_stage: '',
+    });
+
+    // Form Disparo Reativação
+    const reactivationForm = useForm({
+        message: '',
     });
 
     const formatCurrency = (val) => {
@@ -70,6 +165,98 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
         setDraggingDealId(null);
     };
 
+    /* ── Abrir Modal de Disparo Individual ── */
+    const openSingleDispatch = (deal) => {
+        setSelectedDealForDispatch(deal);
+        const stage = deal.stage || 'lead';
+        const templates = STAGE_TEMPLATES[stage] || STAGE_TEMPLATES.lead;
+        const defaultTpl = templates[0];
+
+        const firstName = deal.customer?.name ? deal.customer.name.split(' ')[0] : 'Cliente';
+        const formattedVal = formatCurrency(deal.value);
+        const text = defaultTpl.text
+            .replace('{cliente}', firstName)
+            .replace('{valor}', formattedVal)
+            .replace('{titulo}', deal.title);
+
+        singleDispatchForm.setData({
+            message: text,
+            advance_stage: defaultTpl.advanceTo || '',
+        });
+    };
+
+    const handleSingleDispatchSubmit = (e) => {
+        e.preventDefault();
+        if (!selectedDealForDispatch) return;
+
+        singleDispatchForm.post(`/funil/${selectedDealForDispatch.id}/disparar`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setSelectedDealForDispatch(null);
+                singleDispatchForm.reset();
+            },
+        });
+    };
+
+    /* ── Abrir Modal de Disparo em Massa ── */
+    const openBulkDispatch = (stageKey, columnData) => {
+        const dealsWithCustomer = columnData.deals.filter((d) => d.customer && d.customer.whatsapp);
+        if (dealsWithCustomer.length === 0) {
+            alert('Não há oportunidades com WhatsApp válido nesta etapa.');
+            return;
+        }
+
+        setSelectedColumnForBulk({
+            stageKey,
+            label: columnData.info.label,
+            deals: dealsWithCustomer,
+        });
+
+        const templates = STAGE_TEMPLATES[stageKey] || STAGE_TEMPLATES.lead;
+        const defaultTpl = templates[0];
+
+        bulkDispatchForm.setData({
+            deal_ids: dealsWithCustomer.map((d) => d.id),
+            message_template: defaultTpl.text,
+            advance_stage: defaultTpl.advanceTo || '',
+        });
+    };
+
+    const handleBulkDispatchSubmit = (e) => {
+        e.preventDefault();
+        bulkDispatchForm.post('/funil/disparo-massa', {
+            preserveScroll: true,
+            onSuccess: () => {
+                setSelectedColumnForBulk(null);
+                bulkDispatchForm.reset();
+            },
+        });
+    };
+
+    /* ── Abrir Modal de Reativação ── */
+    const openReactivationDispatch = (customer) => {
+        setSelectedCustomerForReactivation(customer);
+        const firstName = customer.name ? customer.name.split(' ')[0] : 'Cliente';
+        const text = STAGE_TEMPLATES.reactivation[0].text.replace('{cliente}', firstName);
+
+        reactivationForm.setData({
+            message: text,
+        });
+    };
+
+    const handleReactivationSubmit = (e) => {
+        e.preventDefault();
+        if (!selectedCustomerForReactivation) return;
+
+        reactivationForm.post(`/funil/disparo-reativacao/${selectedCustomerForReactivation.id}`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setSelectedCustomerForReactivation(null);
+                reactivationForm.reset();
+            },
+        });
+    };
+
     const priorityBadge = (priority) => {
         switch (priority) {
             case 'high':
@@ -115,147 +302,167 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
         };
 
         return (
-            <div className={`p-4 rounded-2xl border transition-all shadow-sm hover:shadow-md ${getStyles()} flex flex-col gap-3 group`}>
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-600 shrink-0 shadow-sm">
-                            {customer.name.substring(0, 2).toUpperCase()}
+            <div className={`p-4 rounded-2xl border transition-all shadow-xs hover:shadow-md ${getStyles()} flex flex-col justify-between gap-3 group`}>
+                <div>
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs shadow-2xs">
+                                {customer.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                                <Link href={`/clientes/${customer.id}`} className="font-bold text-xs text-slate-900 hover:text-blue-600 line-clamp-1">
+                                    {customer.name}
+                                </Link>
+                                <div className="text-[11px] text-slate-500 font-mono">{customer.whatsapp}</div>
+                            </div>
                         </div>
-                        <div>
-                            <Link href={`/clientes/${customer.id}`} className="font-bold text-sm text-slate-900 hover:text-blue-600 line-clamp-1">
-                                {customer.name}
-                            </Link>
-                            <div className="text-xs text-slate-500 mt-0.5">{customer.whatsapp}</div>
+                        {getBadge()}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="bg-white/70 p-2 rounded-xl border border-black/5">
+                            <div className="text-[9px] font-semibold text-slate-400 uppercase">Última Compra</div>
+                            <div className="text-xs font-bold text-slate-700 flex items-center gap-1 mt-0.5">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                {customer.recency_days} dias atrás
+                            </div>
+                        </div>
+                        <div className="bg-white/70 p-2 rounded-xl border border-black/5">
+                            <div className="text-[9px] font-semibold text-slate-400 uppercase">Total Gasto</div>
+                            <div className="text-xs font-bold text-emerald-600 mt-0.5">
+                                {formatCurrency(customer.total_spent)}
+                            </div>
                         </div>
                     </div>
-                    {getBadge()}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                    <div className="bg-white/60 p-2 rounded-xl border border-black/5">
-                        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Última Compra</div>
-                        <div className="text-sm font-bold text-slate-700 flex items-center gap-1.5 mt-0.5">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            {customer.recency_days} dias atrás
-                        </div>
-                    </div>
-                    <div className="bg-white/60 p-2 rounded-xl border border-black/5">
-                        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Gasto (LTV)</div>
-                        <div className="text-sm font-bold text-slate-700 mt-0.5 font-['Space_Grotesk']">
-                            {formatCurrency(customer.total_spent)}
-                        </div>
-                    </div>
-                </div>
-
-                <a
-                    href={`https://wa.me/55${customer.whatsapp.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 flex items-center justify-center gap-2 w-full py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-colors shadow-sm"
+                {/* Botão Disparo Reativação */}
+                <button
+                    onClick={() => openReactivationDispatch(customer)}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95"
                 >
-                    <MessageCircle className="w-3.5 h-3.5 text-green-600" />
-                    Iniciar Conversa
-                </a>
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                    Disparar Reativação WhatsApp
+                </button>
             </div>
         );
     };
 
     return (
-        <AppLayout title="Funil de Vendas · Kanban">
-            {/* Header & Tabs */}
-            <div className="flex flex-col mb-6 gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-slate-900 tracking-tight flex items-center gap-2">
-                            Funil de Vendas & Pipeline
-                        </h1>
-                        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                            Acompanhe suas negociações ativas. Total em pipeline:{' '}
-                            <strong className="text-emerald-600 font-bold font-['Space_Grotesk']">
-                                {formatCurrency(totalPipelineValue)}
-                            </strong>
-                        </p>
+        <AppLayout title="Funil de Vendas (Kanban)">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                    <h1 className="text-2xl font-bold font-['Space_Grotesk'] text-slate-900 tracking-tight flex items-center gap-2">
+                        Funil de Vendas & Disparos
+                    </h1>
+                    <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+                        Gerencie oportunidades e faça disparos de WhatsApp com mensagens prontas por etapa.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-sm text-right">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-medium">Pipeline Total</span>
+                        <span className="text-sm sm:text-base font-bold font-['Space_Grotesk'] text-emerald-400">
+                            {formatCurrency(totalPipelineValue)}
+                        </span>
                     </div>
 
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-blue-600/20 transition-all transform active:scale-95 shrink-0"
+                        className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-md shadow-blue-600/20 transition-all transform active:scale-95"
                     >
                         <Plus className="w-4 h-4" />
-                        + Nova Oportunidade
-                    </button>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-px mt-2">
-                    <button
-                        onClick={() => setActiveTab('kanban')}
-                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
-                            activeTab === 'kanban'
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                        }`}
-                    >
-                        Kanban (Negociações)
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('recency')}
-                        className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
-                            activeTab === 'recency'
-                                ? 'border-indigo-600 text-indigo-600'
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                        }`}
-                    >
-                        Radar de Reativação
+                        Nova Oportunidade
                     </button>
                 </div>
             </div>
 
-            {/* Content Based on Tab */}
+            {/* Navigation Tabs */}
+            <div className="flex items-center gap-2 border-b border-slate-200 mb-6">
+                <button
+                    onClick={() => setActiveTab('kanban')}
+                    className={`pb-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+                        activeTab === 'kanban'
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <Kanban className="w-4 h-4" />
+                    Quadro Kanban
+                </button>
+                <button
+                    onClick={() => setActiveTab('recency')}
+                    className={`pb-3 px-3 text-xs font-bold border-b-2 transition flex items-center gap-2 ${
+                        activeTab === 'recency'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-800'
+                    }`}
+                >
+                    <History className="w-4 h-4" />
+                    Radar de Reativação (Pós-Venda)
+                </button>
+            </div>
+
+            {/* ── KANBAN BOARD ── */}
             {activeTab === 'kanban' && (
-                <div className="flex overflow-x-auto pb-6 gap-4 snap-x snap-mandatory hide-scrollbar">
-                    {Object.entries(columns || {}).map(([stageKey, col]) => (
+                <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-thin">
+                    {Object.entries(columns).map(([stageKey, col]) => (
                         <div
                             key={stageKey}
                             onDragOver={onDragOver}
                             onDrop={(e) => onDrop(e, stageKey)}
-                            className="bg-slate-100/70 border border-slate-200/90 rounded-3xl p-3.5 flex flex-col h-[calc(100vh-280px)] min-h-[400px] w-72 min-w-[288px] shrink-0 shadow-2xs hover:border-slate-300 transition-colors snap-center"
+                            className="min-w-[290px] w-[290px] max-w-[290px] bg-slate-50/80 rounded-3xl p-3.5 border border-slate-200/70 flex flex-col max-h-[calc(100vh-230px)] shrink-0"
                         >
                             {/* Column Header */}
-                            <div
-                                className="bg-white rounded-2xl p-3 mb-3 border border-slate-200/80 shadow-2xs"
-                                style={{ borderTop: `3.5px solid ${col.info.color}` }}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className="font-bold text-xs text-slate-900 font-['Space_Grotesk']">
+                            <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200/60">
+                                <div className="flex items-center gap-2">
+                                    <span
+                                        className="w-2.5 h-2.5 rounded-full"
+                                        style={{ backgroundColor: col.info.color }}
+                                    />
+                                    <h3 className="font-bold text-xs text-slate-800 font-['Space_Grotesk']">
                                         {col.info.label}
-                                    </span>
-                                    <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center justify-center">
+                                    </h3>
+                                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200/70 text-slate-600">
                                         {col.count}
                                     </span>
                                 </div>
-                                <p className="text-[11px] font-bold text-slate-500 mt-1 font-['Space_Grotesk']">
+                                <span className="text-[11px] font-bold text-slate-700 font-['Space_Grotesk']">
                                     {formatCurrency(col.total)}
-                                </p>
+                                </span>
                             </div>
 
-                            {/* Cards List */}
-                            <div className="flex-1 space-y-3 overflow-y-auto pr-0.5 custom-scrollbar">
-                                {col.deals && col.deals.length > 0 ? (
+                            {/* Botão Disparo em Massa da Coluna */}
+                            {col.count > 0 && (
+                                <button
+                                    onClick={() => openBulkDispatch(stageKey, col)}
+                                    className="mb-3 w-full py-1.5 px-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-95"
+                                    title="Enviar mensagem para todos os leads desta etapa"
+                                >
+                                    <Zap className="w-3 h-3 text-emerald-600 fill-emerald-500" />
+                                    Disparar para os {col.count} Leads
+                                </button>
+                            )}
+
+                            {/* Column Cards Container */}
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                                {col.deals.length > 0 ? (
                                     col.deals.map((deal) => (
                                         <div
                                             key={deal.id}
                                             draggable
                                             onDragStart={(e) => onDragStart(e, deal.id)}
-                                            className={`bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing relative group ${
+                                            className={`bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing relative group ${
                                                 draggingDealId === deal.id ? 'opacity-40 ring-2 ring-blue-500' : ''
                                             }`}
                                         >
-                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                            <div className="flex items-center justify-between gap-2 mb-1.5">
                                                 {priorityBadge(deal.priority)}
                                                 <button
                                                     onClick={() => handleDeleteDeal(deal.id)}
-                                                    className="text-slate-300 hover:text-rose-600 p-1 rounded transition opacity-0 group-hover:opacity-100 md:opacity-100 lg:opacity-0"
+                                                    className="text-slate-300 hover:text-rose-600 p-1 rounded transition opacity-0 group-hover:opacity-100"
                                                     title="Excluir card"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
@@ -267,34 +474,31 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                             </h4>
 
                                             {deal.customer && (
-                                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mt-2">
-                                                    <User className="w-3 h-3 text-slate-400 shrink-0" />
-                                                    <Link
-                                                        href={`/clientes/${deal.customer.id}`}
-                                                        className="truncate hover:text-blue-600 font-medium"
-                                                    >
-                                                        {deal.customer.name}
-                                                    </Link>
-                                                    {deal.customer.recency_days !== null && (
-                                                        <span className="shrink-0 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-semibold border border-slate-200" title={`Última compra há ${deal.customer.recency_days} dias`}>
-                                                            {deal.customer.recency_days}d
+                                                <div className="flex items-center justify-between text-[11px] text-slate-600 mt-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                                        <span className="truncate font-semibold text-slate-800">
+                                                            {deal.customer.name}
                                                         </span>
-                                                    )}
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400 font-mono">
+                                                        {deal.customer.whatsapp}
+                                                    </span>
                                                 </div>
                                             )}
 
                                             {deal.notes && (
-                                                <p className="text-[11px] text-slate-400 mt-2 line-clamp-2 italic bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                                <p className="text-[11px] text-slate-400 mt-1.5 line-clamp-2 italic">
                                                     "{deal.notes}"
                                                 </p>
                                             )}
 
-                                            <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                                            {/* Valor & Seletor de Estágio */}
+                                            <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-100">
                                                 <span className="text-xs font-extrabold text-slate-900 font-['Space_Grotesk']">
                                                     {formatCurrency(deal.value)}
                                                 </span>
 
-                                                {/* Quick stage selector */}
                                                 <select
                                                     value={deal.stage}
                                                     onChange={(e) => handleStageChange(deal.id, e.target.value)}
@@ -308,11 +512,22 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                                     <option value="lost">Perdido</option>
                                                 </select>
                                             </div>
+
+                                            {/* Botão Disparar WhatsApp no Card */}
+                                            {deal.customer?.whatsapp && (
+                                                <button
+                                                    onClick={() => openSingleDispatch(deal)}
+                                                    className="mt-2.5 w-full py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95"
+                                                >
+                                                    <Zap className="w-3.5 h-3.5 fill-current" />
+                                                    Disparar WhatsApp
+                                                </button>
+                                            )}
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="h-32 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center text-[11px] text-slate-400 text-center p-3">
-                                        Arraste um card
+                                    <div className="h-28 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center text-[11px] text-slate-400 text-center p-3">
+                                        Arraste um card aqui
                                     </div>
                                 )}
                             </div>
@@ -321,25 +536,26 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                 </div>
             )}
 
+            {/* ── RADAR DE REATIVAÇÃO ── */}
             {activeTab === 'recency' && (
                 <div className="pb-8">
                     <div className="flex items-center gap-2 mb-1">
                         <History className="w-5 h-5 text-indigo-600" />
                         <h2 className="text-xl font-bold font-['Space_Grotesk'] text-slate-900">
-                            Radar de Reativação
+                            Radar de Reativação & Disparo de Pós-Venda
                         </h2>
                     </div>
                     <p className="text-sm text-slate-500 mb-6">
-                        Acompanhe o tempo desde a última compra dos seus clientes. Inicie conversas para fidelizar ou reconquistar.
+                        Faça disparos automáticos para reconquistar clientes inativos e fidelizar quem comprou recentemente.
                     </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Coluna 1: Fresh (<=30 dias) */}
                         <div>
                             <div className="flex items-center justify-between mb-3 px-1">
-                                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                                <h3 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                                    Até 30 dias <span className="text-slate-400 font-normal text-xs">(Pós-venda)</span>
+                                    Até 30 dias (Pós-Venda)
                                 </h3>
                                 <span className="text-xs font-bold text-slate-400">{recencySegments?.fresh?.length || 0}</span>
                             </div>
@@ -352,9 +568,9 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                         {/* Coluna 2: At Risk (31-90 dias) */}
                         <div>
                             <div className="flex items-center justify-between mb-3 px-1">
-                                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                                <h3 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                                    31 a 90 dias <span className="text-slate-400 font-normal text-xs">(Atenção)</span>
+                                    31 a 90 dias (Atenção)
                                 </h3>
                                 <span className="text-xs font-bold text-slate-400">{recencySegments?.at_risk?.length || 0}</span>
                             </div>
@@ -367,9 +583,9 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                         {/* Coluna 3: Inactive (91-120 dias) */}
                         <div>
                             <div className="flex items-center justify-between mb-3 px-1">
-                                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                                <h3 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                                     <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                                    91 a 120 dias <span className="text-slate-400 font-normal text-xs">(Risco Alto)</span>
+                                    91 a 120 dias (Risco Alto)
                                 </h3>
                                 <span className="text-xs font-bold text-slate-400">{recencySegments?.inactive?.length || 0}</span>
                             </div>
@@ -382,9 +598,9 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                         {/* Coluna 4: Lost (>120 dias) */}
                         <div>
                             <div className="flex items-center justify-between mb-3 px-1">
-                                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                                <h3 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                                    +120 dias <span className="text-slate-400 font-normal text-xs">(Perdidos)</span>
+                                    Mais de 120 dias (Perdidos)
                                 </h3>
                                 <span className="text-xs font-bold text-slate-400">{recencySegments?.lost?.length || 0}</span>
                             </div>
@@ -397,19 +613,279 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                 </div>
             )}
 
-            {/* Modal Nova Oportunidade */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                        <div className="flex items-center justify-between mb-5 sticky top-0 bg-white pb-2 z-10">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                                    <Plus className="w-4 h-4" />
+            {/* ── MODAL: DISPARO INDIVIDUAL DE WHATSAPP ── */}
+            {selectedDealForDispatch && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                    <Zap className="w-5 h-5 fill-emerald-600" />
                                 </div>
-                                <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg">
-                                    Nova Oportunidade
-                                </h3>
+                                <div>
+                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                        Disparo de WhatsApp para Lead
+                                    </h3>
+                                    <p className="text-xs text-slate-500">
+                                        {selectedDealForDispatch.customer?.name} · {selectedDealForDispatch.customer?.whatsapp}
+                                    </p>
+                                </div>
                             </div>
+                            <button
+                                onClick={() => setSelectedDealForDispatch(null)}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSingleDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto">
+                            {/* Templates Sugeridos para esta Etapa */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                                    Sugestões Prontas para esta Etapa:
+                                </label>
+                                <div className="space-y-2">
+                                    {(STAGE_TEMPLATES[selectedDealForDispatch.stage] || STAGE_TEMPLATES.lead).map((tpl, i) => (
+                                        <div
+                                            key={i}
+                                            onClick={() => {
+                                                const firstName = selectedDealForDispatch.customer?.name
+                                                    ? selectedDealForDispatch.customer.name.split(' ')[0]
+                                                    : 'Cliente';
+                                                const val = formatCurrency(selectedDealForDispatch.value);
+                                                singleDispatchForm.setData({
+                                                    message: tpl.text
+                                                        .replace('{cliente}', firstName)
+                                                        .replace('{valor}', val)
+                                                        .replace('{titulo}', selectedDealForDispatch.title),
+                                                    advance_stage: tpl.advanceTo || '',
+                                                });
+                                            }}
+                                            className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer transition text-left group"
+                                        >
+                                            <span className="font-bold text-xs text-slate-800 group-hover:text-emerald-700 block mb-0.5">
+                                                {tpl.title}
+                                            </span>
+                                            <p className="text-[11px] text-slate-600 line-clamp-2">
+                                                {tpl.text}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Mensagem a ser disparada */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Mensagem do WhatsApp (Edite se desejar) *
+                                </label>
+                                <textarea
+                                    value={singleDispatchForm.data.message}
+                                    onChange={(e) => singleDispatchForm.setData('message', e.target.value)}
+                                    rows={4}
+                                    required
+                                    className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none leading-relaxed"
+                                />
+                            </div>
+
+                            {/* Avançar Estágio Automaticamente */}
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <span className="font-bold text-xs text-slate-800 block">Avançar Etapa do Lead?</span>
+                                    <span className="text-[11px] text-slate-500">Move o card automaticamente após o disparo</span>
+                                </div>
+                                <select
+                                    value={singleDispatchForm.data.advance_stage}
+                                    onChange={(e) => singleDispatchForm.setData('advance_stage', e.target.value)}
+                                    className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700"
+                                >
+                                    <option value="">Não mover</option>
+                                    <option value="contacted">Mover para: Contato Feito</option>
+                                    <option value="proposal">Mover para: Proposta Enviada</option>
+                                    <option value="negotiation">Mover para: Em Negociação</option>
+                                    <option value="won">Mover para: Ganho / Fechado</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedDealForDispatch(null)}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={singleDispatchForm.processing || !singleDispatchForm.data.message.trim()}
+                                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    {singleDispatchForm.processing ? 'Disparando...' : 'Disparar WhatsApp Agora'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: DISPARO EM MASSA POR COLUNA ── */}
+            {selectedColumnForBulk && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                                    <Users className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                        Disparo em Massa: {selectedColumnForBulk.label}
+                                    </h3>
+                                    <p className="text-xs text-slate-500">
+                                        Disparo para {selectedColumnForBulk.deals.length} oportunidades com WhatsApp
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedColumnForBulk(null)}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleBulkDispatchSubmit} className="space-y-4 flex-1 overflow-y-auto">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Template da Mensagem (com Tags Dinâmicas) *
+                                </label>
+                                <textarea
+                                    value={bulkDispatchForm.data.message_template}
+                                    onChange={(e) => bulkDispatchForm.setData('message_template', e.target.value)}
+                                    rows={4}
+                                    required
+                                    className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none leading-relaxed"
+                                />
+                                <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                                    <span className="font-bold">Tags disponíveis:</span>
+                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{cliente}"}</code>
+                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{valor}"}</code>
+                                    <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{"{titulo}"}</code>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                                <div>
+                                    <span className="font-bold text-xs text-slate-800 block">Avançar Todos de Etapa?</span>
+                                    <span className="text-[11px] text-slate-500">Move todos os cards disparados</span>
+                                </div>
+                                <select
+                                    value={bulkDispatchForm.data.advance_stage}
+                                    onChange={(e) => bulkDispatchForm.setData('advance_stage', e.target.value)}
+                                    className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700"
+                                >
+                                    <option value="">Não mover</option>
+                                    <option value="contacted">Mover para: Contato Feito</option>
+                                    <option value="proposal">Mover para: Proposta Enviada</option>
+                                    <option value="negotiation">Mover para: Em Negociação</option>
+                                    <option value="won">Mover para: Ganho / Fechado</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedColumnForBulk(null)}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={bulkDispatchForm.processing || !bulkDispatchForm.data.message_template.trim()}
+                                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    <Zap className="w-3.5 h-3.5 fill-current" />
+                                    {bulkDispatchForm.processing ? 'Disparando...' : `Disparar para ${selectedColumnForBulk.deals.length} Leads`}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: DISPARO DE REATIVAÇÃO (RADAR) ── */}
+            {selectedCustomerForReactivation && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                                    <History className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                        Disparo de Reconquista / Reativação
+                                    </h3>
+                                    <p className="text-xs text-slate-500">
+                                        {selectedCustomerForReactivation.name} · {selectedCustomerForReactivation.whatsapp}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedCustomerForReactivation(null)}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleReactivationSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Mensagem de Reconquista *
+                                </label>
+                                <textarea
+                                    value={reactivationForm.data.message}
+                                    onChange={(e) => reactivationForm.setData('message', e.target.value)}
+                                    rows={4}
+                                    required
+                                    className="w-full text-xs p-3 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none leading-relaxed"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedCustomerForReactivation(null)}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={reactivationForm.processing || !reactivationForm.data.message.trim()}
+                                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    {reactivationForm.processing ? 'Enviando...' : 'Enviar WhatsApp de Retorno'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: NOVA OPORTUNIDADE ── */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg">
+                                Nova Oportunidade
+                            </h3>
                             <button
                                 onClick={() => setIsModalOpen(false)}
                                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
@@ -418,7 +894,7 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                             </button>
                         </div>
 
-                        <form onSubmit={handleCreateDeal} className="space-y-4">
+                        <form onSubmit={handleCreateDeal} className="space-y-3.5">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                                     Título da Oportunidade *
@@ -427,31 +903,14 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                     type="text"
                                     value={data.title}
                                     onChange={(e) => setData('title', e.target.value)}
-                                    placeholder="Ex: Vestido de Festa + Acessórios"
+                                    placeholder="Ex: Look festa de gala, Enxoval..."
                                     required
-                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                                    className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
                                 />
+                                {errors.title && <p className="text-xs text-rose-500 mt-1">{errors.title}</p>}
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                        Cliente Vinculado
-                                    </label>
-                                    <select
-                                        value={data.customer_id}
-                                        onChange={(e) => setData('customer_id', e.target.value)}
-                                        className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                                    >
-                                        <option value="">-- Selecione --</option>
-                                        {customers?.map((c) => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.name} ({c.whatsapp})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                                         Valor Estimado (R$) *
@@ -463,27 +922,9 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
                                         onChange={(e) => setData('value', e.target.value)}
                                         placeholder="0,00"
                                         required
-                                        className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition font-['Space_Grotesk']"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                        Etapa Inicial *
-                                    </label>
-                                    <select
-                                        value={data.stage}
-                                        onChange={(e) => setData('stage', e.target.value)}
                                         className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                                    >
-                                        <option value="lead">Novos Leads</option>
-                                        <option value="contacted">Contato Feito</option>
-                                        <option value="proposal">Proposta Enviada</option>
-                                        <option value="negotiation">Em Negociação</option>
-                                        <option value="won">Ganhos / Fechados</option>
-                                    </select>
+                                    />
+                                    {errors.value && <p className="text-xs text-rose-500 mt-1">{errors.value}</p>}
                                 </div>
 
                                 <div>
@@ -504,31 +945,67 @@ export default function DealsIndex({ columns, totalPipelineValue, customers, rec
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Anotações & Observações
+                                    Cliente Vinculado
+                                </label>
+                                <select
+                                    value={data.customer_id}
+                                    onChange={(e) => setData('customer_id', e.target.value)}
+                                    className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                                >
+                                    <option value="">Selecione um cliente (opcional)...</option>
+                                    {customers &&
+                                        customers.map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.name} ({c.whatsapp || 'sem whats'})
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                    Estágio Inicial *
+                                </label>
+                                <select
+                                    value={data.stage}
+                                    onChange={(e) => setData('stage', e.target.value)}
+                                    className="w-full text-xs px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                                >
+                                    <option value="lead">Novos Leads</option>
+                                    <option value="contacted">Contato Feito</option>
+                                    <option value="proposal">Proposta Enviada</option>
+                                    <option value="negotiation">Em Negociação</option>
+                                    <option value="won">Ganho / Fechado</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                    Observações / Anotações
                                 </label>
                                 <textarea
                                     value={data.notes}
                                     onChange={(e) => setData('notes', e.target.value)}
-                                    rows="3"
-                                    placeholder="Detalhes..."
-                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                                    placeholder="Detalhes das peças de interesse..."
+                                    rows={2}
+                                    className="w-full text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
                                 />
                             </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                                    className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={processing}
-                                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-md shadow-blue-600/20 transition active:scale-95 disabled:opacity-50"
+                                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition active:scale-95 disabled:opacity-50"
                                 >
-                                    {processing ? 'Salvando...' : 'Criar Oportunidade'}
+                                    {processing ? 'Salvando...' : 'Adicionar ao Funil'}
                                 </button>
                             </div>
                         </form>

@@ -55,6 +55,9 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::post('/funil', [DealController::class, 'store'])->name('deals.store');
     Route::patch('/funil/{deal}/stage', [DealController::class, 'updateStage'])->name('deals.updateStage');
     Route::delete('/funil/{deal}', [DealController::class, 'destroy'])->name('deals.destroy');
+    Route::post('/funil/{deal}/disparar', [DealController::class, 'sendWhatsApp'])->name('deals.sendWhatsApp');
+    Route::post('/funil/disparo-massa', [DealController::class, 'bulkSendWhatsApp'])->name('deals.bulkSendWhatsApp');
+    Route::post('/funil/disparo-reativacao/{customer}', [DealController::class, 'sendReactivationWhatsApp'])->name('deals.sendReactivationWhatsApp');
 
     // Central de Atendimento WhatsApp (Omnichannel Inbox)
     Route::get('/atendimentos', [ConversationController::class, 'index'])->name('conversations.index');
