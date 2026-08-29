@@ -135,27 +135,38 @@ export default function AppLayout({ title, children }) {
                     </button>
                 </div>
 
-                {/* Workspace Badge */}
+                {/* Workspace Badge & Store Manager */}
                 <div className={`px-4 py-3.5 ${sidebarCollapsed ? 'hidden lg:block lg:px-2' : ''}`}>
-                    <div className={`bg-slate-800/50 hover:bg-slate-800/80 border border-slate-700/60 rounded-xl p-3 flex items-center gap-3 transition-colors shadow-inner ${sidebarCollapsed ? 'lg:justify-center lg:p-2' : ''}`}>
-                        <div
-                            className="w-9 h-9 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-md"
-                            style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}99)` }}
-                        >
-                            {organization?.name ? organization.name.substring(0, 2).toUpperCase() : 'AL'}
+                    <Link
+                        href="/configuracoes/loja"
+                        title="Gerenciar / Criar Lojas e Filiais"
+                        className={`bg-slate-800/50 hover:bg-slate-800/90 border border-slate-700/60 hover:border-slate-600 rounded-xl p-3 flex items-center justify-between gap-3 transition-all shadow-inner group ${sidebarCollapsed ? 'lg:justify-center lg:p-2' : ''}`}
+                    >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                                className="w-8 h-8 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-md"
+                                style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}99)` }}
+                            >
+                                {organization?.name ? organization.name.substring(0, 2).toUpperCase() : 'AL'}
+                            </div>
+                            {!sidebarCollapsed && (
+                                <div className="min-w-0 flex-1">
+                                    <h4 className="text-xs font-semibold text-white truncate tracking-tight">
+                                        {organization?.name || 'Alira Enterprise'}
+                                    </h4>
+                                    <p className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                                        {store?.name || 'Loja Matriz'}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         {!sidebarCollapsed && (
-                            <div className="min-w-0 flex-1">
-                                <h4 className="text-xs font-semibold text-white truncate tracking-tight">
-                                    {organization?.name || 'Alira Enterprise'}
-                                </h4>
-                                <p className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                                    {store?.name || 'Loja Matriz'}
-                                </p>
-                            </div>
+                            <span className="text-[10px] bg-slate-700 text-slate-300 group-hover:bg-blue-600 group-hover:text-white px-2 py-0.5 rounded-md font-semibold transition-colors shrink-0">
+                                Lojas
+                            </span>
                         )}
-                    </div>
+                    </Link>
                 </div>
 
                 {/* Navigation */}
@@ -211,21 +222,21 @@ export default function AppLayout({ title, children }) {
                     </div>
                 </div>
 
-                {/* Settings link */}
+                {/* Settings & Store Management link */}
                 <div className="px-3 mb-2">
                     <Link
                         href="/configuracoes/loja"
                         onClick={() => setMobileMenuOpen(false)}
-                        title={sidebarCollapsed ? "Configurações da Loja" : undefined}
+                        title={sidebarCollapsed ? "Gerenciar Lojas & Identidade" : undefined}
                         className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 ${
                             currentUrl.startsWith('/configuracoes')
                                 ? 'text-white font-semibold'
-                                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                         } ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}
                         style={currentUrl.startsWith('/configuracoes') ? activeStyle : {}}
                     >
                         <Settings className="w-4 h-4 shrink-0" />
-                        {!sidebarCollapsed && <span>Configurações da Loja</span>}
+                        {!sidebarCollapsed && <span>Gerenciar Lojas & Marca</span>}
                     </Link>
                 </div>
 

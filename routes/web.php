@@ -52,7 +52,9 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::post('/vendas', [SaleController::class, 'store'])->name('sales.store');
     Route::get('/vendas/{sale}', [SaleController::class, 'show'])->name('sales.show');
 
-    // Configurações da Loja
+    // Configurações & Gestão Multi-Lojas
     Route::get('/configuracoes/loja', [StoreSettingsController::class, 'edit'])->name('settings.store');
     Route::post('/configuracoes/loja', [StoreSettingsController::class, 'update'])->name('settings.store.update');
+    Route::post('/lojas/nova', [StoreSettingsController::class, 'store'])->name('stores.store');
+    Route::post('/lojas/{store}/alternar', [StoreSettingsController::class, 'switchStore'])->name('stores.switch');
 });
