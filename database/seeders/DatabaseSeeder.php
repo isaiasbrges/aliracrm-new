@@ -13,29 +13,25 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $organization = Organization::query()->updateOrCreate(
-            ['slug' => 'alira-demo'],
-            ['name' => 'Alira Grupo & Varejo', 'status' => 'active'],
+            ['slug' => 'dyvinus-org'],
+            ['name' => 'Dyvinus Moda & Varejo', 'status' => 'active'],
         );
 
-        // Loja 1: Dyvinus
+        // Loja Exclusiva: Dyvinus
         $storeDyvinus = Store::query()->updateOrCreate(
             ['organization_id' => $organization->id, 'slug' => 'dyvinus'],
             ['name' => 'Dyvinus', 'active' => true, 'accent_color' => '#db2777'],
         );
         StoreCounter::query()->firstOrCreate(['store_id' => $storeDyvinus->id], ['last_number' => 100]);
 
-        // Loja 2: Loja Matriz
-        $storeMatriz = Store::query()->updateOrCreate(
-            ['organization_id' => $organization->id, 'slug' => 'loja-principal'],
-            ['name' => 'Loja Jardins (Matriz)', 'active' => true, 'accent_color' => '#2563eb'],
-        );
-        StoreCounter::query()->firstOrCreate(['store_id' => $storeMatriz->id], ['last_number' => 100]);
+        // Remover quaisquer outras lojas para manter foco 100% na Dyvinus
+        Store::query()->where('id', '!=', $storeDyvinus->id)->delete();
 
         User::query()->updateOrCreate(
             ['email' => 'demo@alira.local'],
             [
                 'organization_id' => $organization->id,
-                'name' => 'Isaias Consultor',
+                'name' => 'Isaias Dyvinus',
                 'password' => 'demo12345',
                 'role' => 'owner',
                 'active' => true,
