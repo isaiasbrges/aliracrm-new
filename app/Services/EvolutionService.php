@@ -96,6 +96,102 @@ class EvolutionService
     }
 
     /**
+     * Enviar Enquete / Opções Selecionáveis nativas do WhatsApp (Poll)
+     */
+    public function sendPoll(string $instanceName, string $phoneNumber, string $title, array $options, int $selectableCount = 1): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'Evolution API não configurada'];
+        }
+
+        $cleanNumber = preg_replace('/\D/', '', $phoneNumber);
+        if (!str_starts_with($cleanNumber, '55') && strlen($cleanNumber) >= 10) {
+            $cleanNumber = '55' . $cleanNumber;
+        }
+
+        try {
+            $url = "{$this->baseUrl}/message/sendPoll/{$instanceName}";
+            $payload = [
+                'number' => $cleanNumber,
+                'name' => $title,
+                'selectableCount' => $selectableCount,
+                'values' => $options,
+            ];
+
+            $response = Http::withHeaders([
+                'apikey' => $this->globalApiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(15)->post($url, $payload);
+
+            if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
+                $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
+                $altUrl = "{$this->baseUrl}/message/sendPoll/{$altInstance}";
+                $response = Http::withHeaders([
+                    'apikey' => $this->globalApiKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(15)->post($altUrl, $payload);
+            }
+
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return ['success' => false, 'error' => $response->body()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar Mensagem Interativa com Lista de Opções Selecionáveis (List Menu)
+     */
+    public function sendListMenu(string $instanceName, string $phoneNumber, string $title, string $description, string $buttonText, array $rows, ?string $footerText = null): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'Evolution API não configurada'];
+        }
+
+        $cleanNumber = preg_replace('/\D/', '', $phoneNumber);
+        if (!str_starts_with($cleanNumber, '55') && strlen($cleanNumber) >= 10) {
+            $cleanNumber = '55' . $cleanNumber;
+        }
+
+        try {
+            $url = "{$this->baseUrl}/message/sendList/{$instanceName}";
+            $payload = [
+                'number' => $cleanNumber,
+                'title' => $title,
+                'description' => $description,
+                'buttonText' => $buttonText ?: 'Ver Opções',
+                'footerText' => $footerText ?: 'Dyvinuss Looks',
+                'values' => $rows,
+            ];
+
+            $response = Http::withHeaders([
+                'apikey' => $this->globalApiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(15)->post($url, $payload);
+
+            if ($response->failed() && in_array($instanceName, ['dyvinuss-looks', 'dyvinus'], true)) {
+                $altInstance = $instanceName === 'dyvinuss-looks' ? 'dyvinus' : 'dyvinuss-looks';
+                $altUrl = "{$this->baseUrl}/message/sendList/{$altInstance}";
+                $response = Http::withHeaders([
+                    'apikey' => $this->globalApiKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(15)->post($altUrl, $payload);
+            }
+
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return ['success' => false, 'error' => $response->body()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Obter status da conexão da instância (open, connecting, close)
      */
     public function getConnectionStatus(string $instanceName): array

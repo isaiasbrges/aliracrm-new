@@ -6,6 +6,7 @@ import {
     Send,
     Search,
     Plus,
+    Minus,
     User,
     ShoppingBag,
     CheckCheck,
@@ -23,6 +24,10 @@ import {
     HeartHandshake,
     MapPin,
     Smile,
+    ListOrdered,
+    CheckSquare,
+    Layers,
+    SlidersHorizontal,
 } from 'lucide-react';
 
 const DEFAULT_QUICK_REPLIES = [
@@ -31,7 +36,14 @@ const DEFAULT_QUICK_REPLIES = [
         category: 'Boas-Vindas',
         title: 'Boas-Vindas & Recepção',
         icon: Smile,
-        text: 'Olá {cliente}! Seja muito bem-vinda(o) à nossa loja! Como posso te ajudar hoje? ✨',
+        text: 'Olá {cliente}! Seja muito bem-vinda(o) à Dyvinuss Looks! Como posso te ajudar hoje? ✨',
+    },
+    {
+        id: 'catalog',
+        category: 'Catálogo',
+        title: 'Link do Catálogo Online',
+        icon: ShoppingBag,
+        text: 'Olá {cliente}! Você pode conferir todos os nossos looks disponíveis, fotos e tamanhos no nosso catálogo online: https://aliracrm.site/catalogo ✨ Basta escolher suas peças favoritas e me avisar aqui!',
     },
     {
         id: 'pix',
@@ -48,32 +60,60 @@ const DEFAULT_QUICK_REPLIES = [
         text: 'Trabalhamos com:\n• PIX à vista (com 5% de desconto)\n• Cartão de Crédito em até 6x sem juros\n• Link de Pagamento seguro\n\nQual forma prefere para finalizarmos?',
     },
     {
-        id: 'catalog',
-        category: 'Produtos',
-        title: 'Catálogo & Lançamentos',
-        icon: Sparkles,
-        text: 'Temos lançamentos exclusivos e peças lindíssimas que acabaram de chegar! Gostaria de receber fotos e tamanhos disponíveis?',
-    },
-    {
         id: 'shipping',
-        category: 'Entrega',
-        title: 'Frete & Envio',
+        category: 'Envio & Frete',
+        title: 'Frete & Prazo de Entrega',
         icon: Package,
-        text: 'Sua peça já está reservada com todo carinho! Por favor, me informe seu CEP para calcularmos a entrega expressa para você.',
+        text: 'Enviamos para todo o Brasil via Sedex/PAC e Motoboy para entregas locais. Me informe seu CEP que já calculo o prazo e o frete com as melhores condições!',
     },
     {
-        id: 'thanks',
+        id: 'post_sale',
         category: 'Pós-Venda',
-        title: 'Agradecimento pela Compra',
+        title: 'Agradecimento & Rastreio',
         icon: HeartHandshake,
-        text: 'Muito obrigado pela sua compra, {cliente}! Seu pedido está sendo embalado com todo carinho. Logo mais te envio o código de rastreio! 💖',
+        text: 'Muito obrigado pela sua compra, {cliente}! Seu pedido está sendo embalado com muito carinho. Assim que for postado, envio o código de rastreamento por aqui! 💖',
+    },
+];
+
+/* ── Templates Prontos de Opções Selecionáveis para WhatsApp ── */
+const INTERACTIVE_OPTION_TEMPLATES = [
+    {
+        title: 'Menu de Atendimento VIP',
+        prompt: 'Olá {cliente}! Como podemos te atender hoje na Dyvinuss Looks?',
+        options: [
+            '1. 🛍️ Ver Catálogo Online',
+            '2. 👗 Lançamentos & Vestidos',
+            '3. 💬 Falar com Consultora VIP',
+            '4. 💳 Formas de Pagamento & PIX',
+        ],
     },
     {
-        id: 'hours',
-        category: 'Atendimento',
-        title: 'Horário de Atendimento',
-        icon: Clock,
-        text: 'Nosso atendimento funciona de segunda a sábado das 09h às 19h. Responderemos sua mensagem com todo prazer!',
+        title: 'Consultoria de Tamanhos',
+        prompt: 'Qual tamanho de look você costuma vestir?',
+        options: [
+            '1. Tamanho P (36-38)',
+            '2. Tamanho M (40)',
+            '3. Tamanho G (42-44)',
+            '4. Tamanho GG (46+)',
+        ],
+    },
+    {
+        title: 'Formas de Entrega / Frete',
+        prompt: 'Como prefere receber suas peças?',
+        options: [
+            '1. 🛵 Entrega Express (Motoboy)',
+            '2. 📦 Correios / Sedex',
+            '3. 🛍️ Retirada na Loja',
+        ],
+    },
+    {
+        title: 'Confirmação de Pagamento',
+        prompt: 'Qual a sua preferência para pagamento?',
+        options: [
+            '1. 💰 PIX com 5% de Desconto',
+            '2. 💳 Cartão de Crédito em até 6x',
+            '3. 🔗 Link de Pagamento',
+        ],
     },
 ];
 
@@ -81,20 +121,29 @@ export default function ConversationsIndex({
     conversations,
     activeConversation,
     messages,
+    customers,
     status,
     search,
-    customers,
 }) {
     const [searchTerm, setSearchTerm] = useState(search || '');
-    const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
     const [isQuickRepliesOpen, setIsQuickRepliesOpen] = useState(false);
+    const [isInteractiveModalOpen, setIsInteractiveModalOpen] = useState(false);
+    const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+
+    // Form de Mensagem Interativa com Opções
+    const [interactiveTitle, setInteractiveTitle] = useState('Como podemos te atender hoje?');
+    const [interactiveOptions, setInteractiveOptions] = useState([
+        '1. 🛍️ Ver Catálogo Online',
+        '2. 👗 Lançamentos & Vestidos',
+        '3. 💬 Falar com Consultora VIP',
+    ]);
+    const [sendingInteractive, setSendingInteractive] = useState(false);
+
     const [quickReplies, setQuickReplies] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('alira_custom_quick_replies');
             if (saved) {
-                try {
-                    return JSON.parse(saved);
-                } catch (e) {}
+                try { return JSON.parse(saved); } catch (e) {}
             }
         }
         return DEFAULT_QUICK_REPLIES;
@@ -133,6 +182,60 @@ export default function ConversationsIndex({
         const formatted = textTemplate.replace('{cliente}', clientName);
         setMsgData('body', formatted);
         setIsQuickRepliesOpen(false);
+    };
+
+    /* ── Carregar Template Interativo ── */
+    const handleSelectInteractiveTemplate = (tpl) => {
+        const clientName = activeConversation?.customer?.name ? activeConversation.customer.name.split(' ')[0] : 'Cliente';
+        setInteractiveTitle(tpl.prompt.replace('{cliente}', clientName));
+        setInteractiveOptions([...tpl.options]);
+    };
+
+    const handleAddOption = () => {
+        if (interactiveOptions.length < 10) {
+            setInteractiveOptions([...interactiveOptions, `${interactiveOptions.length + 1}. Nova Opção`]);
+        }
+    };
+
+    const handleRemoveOption = (index) => {
+        if (interactiveOptions.length > 2) {
+            setInteractiveOptions(interactiveOptions.filter((_, i) => i !== index));
+        }
+    };
+
+    const handleOptionChange = (index, value) => {
+        const updated = [...interactiveOptions];
+        updated[index] = value;
+        setInteractiveOptions(updated);
+    };
+
+    /* ── Enviar Mensagem Interativa no WhatsApp ── */
+    const handleSendInteractiveSubmit = (e) => {
+        e.preventDefault();
+        if (!activeConversation || !interactiveTitle.trim()) return;
+
+        const cleanOptions = interactiveOptions.map((o) => o.trim()).filter(Boolean);
+        if (cleanOptions.length < 2) {
+            alert('Adicione pelo menos 2 opções para o cliente.');
+            return;
+        }
+
+        setSendingInteractive(true);
+        router.post(
+            `/atendimentos/${activeConversation.id}/interativo`,
+            {
+                title: interactiveTitle,
+                options: cleanOptions,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setIsInteractiveModalOpen(false);
+                    setSendingInteractive(false);
+                },
+                onError: () => setSendingInteractive(false),
+            }
+        );
     };
 
     const handleSaveNewReply = (e) => {
@@ -200,7 +303,7 @@ export default function ConversationsIndex({
                         </span>
                     </h1>
                     <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                        Converse com clientes, utilize mensagens prontas e feche vendas diretamente pelo chat.
+                        Converse com clientes, envie mensagens com opções clicáveis e feche pedidos diretamente pelo chat.
                     </p>
                 </div>
 
@@ -288,15 +391,19 @@ export default function ConversationsIndex({
                                                     ? conv.customer.name.substring(0, 2).toUpperCase()
                                                     : 'WA'}
                                             </div>
-                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white absolute bottom-0 right-0" />
+                                            {conv.channel === 'whatsapp' && (
+                                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[9px] border-2 border-white">
+                                                    <Phone className="w-2 h-2" />
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                                            <div className="flex items-center justify-between gap-1 mb-1">
                                                 <h4 className="font-bold text-xs text-slate-900 truncate">
-                                                    {conv.customer?.name || conv.external_chat_id}
+                                                    {conv.customer?.name || `WhatsApp ${conv.external_chat_id}`}
                                                 </h4>
-                                                <span className="text-[10px] text-slate-400 shrink-0">
+                                                <span className="text-[10px] text-slate-400 shrink-0 font-mono">
                                                     {conv.last_message_at
                                                         ? new Date(conv.last_message_at).toLocaleTimeString('pt-BR', {
                                                               hour: '2-digit',
@@ -306,241 +413,350 @@ export default function ConversationsIndex({
                                                 </span>
                                             </div>
 
-                                            <p className="text-[11px] text-slate-500 truncate leading-relaxed">
-                                                {conv.last_message_preview || 'Conversa iniciada'}
+                                            <p className="text-xs text-slate-500 truncate leading-snug">
+                                                {conv.last_message_preview || 'Nova conversa'}
                                             </p>
-
-                                            <div className="flex items-center justify-between mt-1.5">
-                                                <span
-                                                    className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                                                        conv.status === 'open'
-                                                            ? 'bg-emerald-50 text-emerald-700'
-                                                            : conv.status === 'in_progress'
-                                                            ? 'bg-blue-50 text-blue-700'
-                                                            : 'bg-slate-100 text-slate-600'
-                                                    }`}
-                                                >
-                                                    {conv.status === 'open'
-                                                        ? 'Aberta'
-                                                        : conv.status === 'in_progress'
-                                                        ? 'Em curso'
-                                                        : 'Finalizada'}
-                                                </span>
-
-                                                {hasUnread && (
-                                                    <span className="w-4 h-4 rounded-full bg-emerald-500 text-white font-bold text-[9px] flex items-center justify-center">
-                                                        {conv.unread_count}
-                                                    </span>
-                                                )}
-                                            </div>
                                         </div>
+
+                                        {hasUnread && (
+                                            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0 self-center" />
+                                        )}
                                     </Link>
                                 );
                             })
                         ) : (
                             <div className="p-8 text-center text-xs text-slate-400">
-                                <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                                 Nenhuma conversa encontrada.
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Right Area: Active Chat Window (8 cols) */}
-                <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden relative">
-                    {activeConversation ? (
-                        <>
-                            {/* Chat Header */}
-                            <div className="p-3.5 border-b border-slate-100 bg-white flex items-center justify-between gap-3 shadow-2xs z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
-                                        {activeConversation.customer?.name
-                                            ? activeConversation.customer.name.substring(0, 2).toUpperCase()
-                                            : 'WA'}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-sm flex items-center gap-2">
-                                            {activeConversation.customer?.name || activeConversation.external_chat_id}
-                                            <span className="text-[11px] font-normal text-slate-400 font-mono">
-                                                {activeConversation.customer?.whatsapp || activeConversation.external_chat_id}
-                                            </span>
-                                        </h3>
-                                        <p className="text-[11px] text-slate-500">
-                                            {activeConversation.customer?.total_spent > 0 ? (
-                                                <>
-                                                    Total gasto: <b className="text-emerald-600">{formatCurrency(activeConversation.customer.total_spent)}</b> ({activeConversation.customer.total_purchases} compras) ·{' '}
-                                                    <Link
-                                                        href={`/clientes/${activeConversation.customer.id}`}
-                                                        className="text-blue-600 hover:underline font-semibold"
-                                                    >
-                                                        Ver Perfil 360°
-                                                    </Link>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Cliente sem histórico prévio ·{' '}
-                                                    <Link
-                                                        href={`/clientes/${activeConversation.customer.id}`}
-                                                        className="text-blue-600 hover:underline font-semibold"
-                                                    >
-                                                        Ver Perfil 360°
-                                                    </Link>
-                                                </>
-                                            )}
-                                        </p>
-                                    </div>
+                {/* Right Chat & CRM Panel (8 cols) */}
+                {activeConversation ? (
+                    <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/80 shadow-sm flex flex-col overflow-hidden">
+                        {/* Chat Header */}
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs shrink-0">
+                                    {activeConversation.customer?.name
+                                        ? activeConversation.customer.name.substring(0, 2).toUpperCase()
+                                        : 'WA'}
                                 </div>
-
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        value={activeConversation.status}
-                                        onChange={(e) => handleUpdateStatus(e.target.value)}
-                                        className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 outline-none hover:bg-slate-50 transition shadow-2xs"
-                                    >
-                                        <option value="open">Aberta</option>
-                                        <option value="in_progress">Em Atendimento</option>
-                                        <option value="closed">Finalizada</option>
-                                    </select>
-
-                                    {activeConversation.customer_id && (
-                                        <Link
-                                            href={`/vendas/nova?customer_id=${activeConversation.customer_id}`}
-                                            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95"
-                                        >
-                                            <ShoppingBag className="w-3.5 h-3.5" />
-                                            <span className="hidden sm:inline">Nova Venda</span>
-                                        </Link>
-                                    )}
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-sm text-slate-900 truncate">
+                                            {activeConversation.customer?.name || 'Cliente WhatsApp'}
+                                        </h3>
+                                        <span className="text-[11px] font-mono text-slate-500">
+                                            ({activeConversation.external_chat_id})
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 truncate">
+                                        Atendimento via WhatsApp · Instância Dyvinuss Looks
+                                    </p>
                                 </div>
                             </div>
 
-                            {/* Messages Container */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#f8fafc] bg-radial from-slate-100/50 to-transparent">
-                                {messages && messages.length > 0 ? (
-                                    messages.map((msg) => {
-                                        const isOutbound = msg.direction === 'outbound';
-                                        return (
+                            {/* Status and Action Buttons */}
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={activeConversation.status}
+                                    onChange={(e) => handleUpdateStatus(e.target.value)}
+                                    className="text-xs font-semibold bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 outline-none hover:bg-slate-50 transition"
+                                >
+                                    <option value="open">Aberta</option>
+                                    <option value="in_progress">Em Atendimento</option>
+                                    <option value="closed">Finalizada</option>
+                                </select>
+
+                                {activeConversation.customer && (
+                                    <Link
+                                        href={`/clientes/${activeConversation.customer.id}`}
+                                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition"
+                                        title="Ver Perfil 360° do Cliente"
+                                    >
+                                        <User className="w-4 h-4" />
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Messages Feed */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#f8fafc]">
+                            {messages && messages.length > 0 ? (
+                                messages.map((msg) => {
+                                    const isOutbound = msg.direction === 'outbound';
+                                    const isInteractive = msg.type === 'interactive' || msg.body?.startsWith('📊');
+
+                                    return (
+                                        <div
+                                            key={msg.id}
+                                            className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}
+                                        >
                                             <div
-                                                key={msg.id}
-                                                className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}
+                                                className={`max-w-[78%] p-3.5 rounded-2xl shadow-xs ${
+                                                    isOutbound
+                                                        ? isInteractive
+                                                            ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-tr-none border border-indigo-400/40'
+                                                            : 'bg-blue-600 text-white rounded-tr-none'
+                                                        : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
+                                                }`}
                                             >
+                                                {isInteractive && (
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
+                                                        <ListOrdered className="w-3.5 h-3.5" />
+                                                        Opções Selecionáveis Enviadas
+                                                    </div>
+                                                )}
+                                                <p className="whitespace-pre-wrap leading-relaxed text-xs">{msg.body}</p>
                                                 <div
-                                                    className={`max-w-[75%] sm:max-w-md p-3.5 rounded-2xl text-xs shadow-xs relative ${
-                                                        isOutbound
-                                                            ? 'bg-blue-600 text-white rounded-tr-none'
-                                                            : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
+                                                    className={`text-[10px] mt-1.5 flex items-center justify-end gap-1 ${
+                                                        isOutbound ? 'text-blue-100' : 'text-slate-400'
                                                     }`}
                                                 >
-                                                    <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
-                                                    <div
-                                                        className={`text-[10px] mt-1.5 flex items-center justify-end gap-1 ${
-                                                            isOutbound ? 'text-blue-100' : 'text-slate-400'
-                                                        }`}
-                                                    >
-                                                        <span>
-                                                            {new Date(msg.created_at).toLocaleTimeString('pt-BR', {
-                                                                hour: '2-digit',
-                                                                minute: '2-digit',
-                                                            })}
-                                                        </span>
-                                                        {isOutbound && <CheckCheck className="w-3 h-3 text-blue-200" />}
-                                                    </div>
+                                                    <span>
+                                                        {new Date(msg.created_at).toLocaleTimeString('pt-BR', {
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                        })}
+                                                    </span>
+                                                    {isOutbound && <CheckCheck className="w-3 h-3 text-blue-200" />}
                                                 </div>
                                             </div>
-                                        );
-                                    })
-                                ) : (
-                                    <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                                        Nenhuma mensagem nesta conversa ainda.
-                                    </div>
-                                )}
-                                <div ref={messagesEndRef} />
-                            </div>
-
-                            {/* Quick Replies Chips Bar */}
-                            <div className="px-3.5 py-2 bg-slate-50 border-t border-slate-200/70 flex items-center gap-1.5 overflow-x-auto text-[11px]">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsQuickRepliesOpen(true)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold border border-amber-300/60 shadow-2xs transition shrink-0"
-                                >
-                                    <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-                                    <span>Mensagens Prontas</span>
-                                </button>
-
-                                {quickReplies.slice(0, 4).map((qr) => (
-                                    <button
-                                        key={qr.id}
-                                        type="button"
-                                        onClick={() => handleSelectQuickReply(qr.text)}
-                                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-medium border border-slate-200/80 shadow-2xs transition shrink-0 truncate max-w-[170px]"
-                                        title={qr.text}
-                                    >
-                                        {qr.title}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Message Input Box */}
-                            <form onSubmit={handleSendMessage} className="p-3 bg-white flex items-center gap-2 border-t border-slate-100">
-                                <input
-                                    type="text"
-                                    value={msgData.body}
-                                    onChange={(e) => setMsgData('body', e.target.value)}
-                                    placeholder="Digite sua mensagem ou escolha uma pronta acima..."
-                                    className="flex-1 text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none transition"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={sendingMsg || !msgData.body.trim()}
-                                    className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 transition active:scale-95 disabled:opacity-50"
-                                >
-                                    <Send className="w-4 h-4" />
-                                </button>
-                            </form>
-                        </>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-                            <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-                                <MessageSquare className="w-8 h-8" />
-                            </div>
-                            <h3 className="font-bold text-slate-800 font-['Space_Grotesk'] text-base">
-                                Selecione uma conversa ao lado
-                            </h3>
-                            <p className="text-xs text-slate-400 max-w-sm mt-1">
-                                Ou clique em <b>+ Nova Conversa</b> para iniciar um atendimento com um cliente cadastrado.
-                            </p>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                                    Nenhuma mensagem nesta conversa ainda.
+                                </div>
+                            )}
+                            <div ref={messagesEndRef} />
                         </div>
-                    )}
-                </div>
+
+                        {/* Quick Replies & Interactive Options Chips Bar */}
+                        <div className="px-3.5 py-2 bg-slate-50 border-t border-slate-200/70 flex items-center gap-2 overflow-x-auto text-[11px]">
+                            {/* Botão de Enviar Opções Selecionáveis */}
+                            <button
+                                type="button"
+                                onClick={() => setIsInteractiveModalOpen(true)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-xs transition shrink-0 active:scale-95"
+                                title="Enviar mensagem com opções para o cliente clicar no WhatsApp"
+                            >
+                                <ListOrdered className="w-3.5 h-3.5" />
+                                <span>Enviar Opções / Menu</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setIsQuickRepliesOpen(true)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold border border-amber-300/60 shadow-2xs transition shrink-0"
+                            >
+                                <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                                <span>Mensagens Prontas</span>
+                            </button>
+
+                            {quickReplies.slice(0, 3).map((qr) => (
+                                <button
+                                    key={qr.id}
+                                    type="button"
+                                    onClick={() => handleSelectQuickReply(qr.text)}
+                                    className="px-2.5 py-1 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-medium border border-slate-200/80 shadow-2xs transition shrink-0 truncate max-w-[170px]"
+                                    title={qr.text}
+                                >
+                                    {qr.title}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Message Input Box */}
+                        <form onSubmit={handleSendMessage} className="p-3 bg-white flex items-center gap-2 border-t border-slate-100">
+                            <input
+                                type="text"
+                                value={msgData.body}
+                                onChange={(e) => setMsgData('body', e.target.value)}
+                                placeholder="Digite sua mensagem ou escolha uma opção acima..."
+                                className="flex-1 text-xs px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none transition"
+                            />
+                            <button
+                                type="submit"
+                                disabled={sendingMsg || !msgData.body.trim()}
+                                className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 transition active:scale-95 disabled:opacity-50"
+                            >
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </form>
+                    </div>
+                ) : (
+                    <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/80 shadow-sm flex flex-col items-center justify-center p-8 text-center">
+                        <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 border border-emerald-100">
+                            <MessageSquare className="w-8 h-8" />
+                        </div>
+                        <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-lg">
+                            Nenhum Atendimento Selecionado
+                        </h3>
+                        <p className="text-xs text-slate-400 max-w-sm mt-1 mb-4">
+                            Selecione uma conversa ao lado para responder seus clientes ou inicie um novo atendimento no WhatsApp.
+                        </p>
+                        <button
+                            onClick={() => setIsNewChatModalOpen(true)}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition"
+                        >
+                            + Iniciar Nova Conversa
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* ── MODAL: CATÁLOGO DE MENSAGENS PRONTAS ── */}
-            {isQuickRepliesOpen && (
+            {/* ── MODAL: ENVIAR MENSAGEM COM OPÇÕES SELECIONÁVEIS (POLL / MENU) ── */}
+            {isInteractiveModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                                    <Zap className="w-5 h-5 fill-amber-500" />
+                                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                                    <ListOrdered className="w-5 h-5" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
-                                        Catálogo de Mensagens Prontas (WhatsApp)
+                                        Enviar Opções Selecionáveis
                                     </h3>
-                                    <p className="text-xs text-slate-400">Clique para preencher o chat automaticamente com dados do cliente</p>
+                                    <p className="text-xs text-slate-400">
+                                        O cliente recebe botões no WhatsApp para clicar e responder com 1 toque!
+                                    </p>
                                 </div>
                             </div>
                             <button
-                                onClick={() => { setIsQuickRepliesOpen(false); setIsAddingReply(false); }}
+                                onClick={() => setIsInteractiveModalOpen(false)}
                                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        {/* List of Replies */}
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                        <form onSubmit={handleSendInteractiveSubmit} className="space-y-4 py-3 overflow-y-auto flex-1">
+                            {/* Templates Rápidos */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1.5 uppercase tracking-wider flex items-center gap-1">
+                                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                    Modelos Prontos de Opções:
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {INTERACTIVE_OPTION_TEMPLATES.map((tpl, i) => (
+                                        <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => handleSelectInteractiveTemplate(tpl)}
+                                            className="p-2 text-left rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-xs font-semibold text-purple-900 transition flex flex-col justify-between"
+                                        >
+                                            <span className="font-bold">{tpl.title}</span>
+                                            <span className="text-[10px] text-purple-600 mt-1">{tpl.options.length} opções</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Título / Pergunta */}
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                                    Pergunta / Título do Menu *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={interactiveTitle}
+                                    onChange={(e) => setInteractiveTitle(e.target.value)}
+                                    placeholder="Ex: Como podemos te atender hoje?"
+                                    required
+                                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition"
+                                />
+                            </div>
+
+                            {/* Lista de Opções */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                                        Opções para o Cliente Escolher ({interactiveOptions.length}) *
+                                    </label>
+                                    {interactiveOptions.length < 10 && (
+                                        <button
+                                            type="button"
+                                            onClick={handleAddOption}
+                                            className="text-[11px] font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                                        >
+                                            <Plus className="w-3 h-3" /> + Adicionar Opção
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    {interactiveOptions.map((opt, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-400 w-5">{idx + 1}.</span>
+                                            <input
+                                                type="text"
+                                                value={opt}
+                                                onChange={(e) => handleOptionChange(idx, e.target.value)}
+                                                placeholder={`Opção ${idx + 1}`}
+                                                required
+                                                className="flex-1 text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-purple-500 outline-none transition"
+                                            />
+                                            {interactiveOptions.length > 2 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveOption(idx)}
+                                                    className="p-1 text-slate-400 hover:text-rose-500 rounded transition"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsInteractiveModalOpen(false)}
+                                    className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={sendingInteractive || !interactiveTitle.trim()}
+                                    className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    {sendingInteractive ? 'Enviando...' : 'Enviar Opções no WhatsApp'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Mensagens Prontas (Quick Replies) */}
+            {isQuickRepliesOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl border border-slate-200 p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                                <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
+                                <h3 className="font-bold text-slate-900 font-['Space_Grotesk'] text-base">
+                                    Catálogo de Mensagens Prontas
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setIsQuickRepliesOpen(false)}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto py-3 space-y-2">
                             {quickReplies.map((qr) => {
                                 const IconComponent = qr.icon || Bookmark;
                                 return (

@@ -70,6 +70,7 @@ Route::middleware(['auth', 'tenant'])->group(function (): void {
     Route::get('/atendimentos', [ConversationController::class, 'index'])->name('conversations.index');
     Route::post('/atendimentos/iniciar', [ConversationController::class, 'startWithCustomer'])->name('conversations.start');
     Route::post('/atendimentos/{conversation}/mensagens', [ConversationController::class, 'storeMessage'])->name('conversations.messages.store');
+    Route::post('/atendimentos/{conversation}/interativo', [ConversationController::class, 'sendInteractive'])->name('conversations.interactive.store');
     Route::patch('/atendimentos/{conversation}/status', [ConversationController::class, 'updateStatus'])->name('conversations.status.update');
     Route::get('/api/whatsapp/status', [WhatsAppStatusController::class, 'getStatus'])->name('whatsapp.status');
     Route::get('/api/whatsapp/qrcode', [WhatsAppStatusController::class, 'getQrCode'])->name('whatsapp.qrcode');

@@ -132,6 +132,56 @@ class ConversationController extends Controller
             ->with('success', 'Mensagem enviada com sucesso!');
     }
 
+    public function sendInteractive(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $organizationId = $request->user()->organization_id;
+        $store = $request->attributes->get('store');
+        $storeId = $store->id;
+
+        if ($conversation->organization_id !== $organizationId || $conversation->store_id !== $storeId) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'options' => ['required', 'array', 'min:2', 'max:10'],
+            'options.*' => ['required', 'string', 'max:100'],
+        ]);
+
+        $toPhone = $conversation->customer?->whatsapp ?? $conversation->external_chat_id;
+        $instanceName = $store->slug ?? 'dyvinus';
+
+        $evoResult = $this->evolutionService->sendPoll(
+            instanceName: $instanceName,
+            phoneNumber: $toPhone,
+            title: $data['title'],
+            options: $data['options'],
+        );
+
+        $previewText = "📊 [Opções]: {$data['title']} (" . implode(' | ', $data['options']) . ")";
+
+        Message::create([
+            'organization_id' => $organizationId,
+            'conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'interactive',
+            'body' => $previewText,
+            'status' => ($evoResult['success'] ?? false) ? 'delivered' : 'sent',
+            'from_phone' => 'store',
+            'to_phone' => $toPhone,
+            'sent_at' => now(),
+        ]);
+
+        $conversation->update([
+            'last_message_preview' => $previewText,
+            'last_message_at' => now(),
+            'status' => $conversation->status === 'closed' ? 'open' : $conversation->status,
+        ]);
+
+        return redirect()->route('conversations.index', ['chat' => $conversation->id])
+            ->with('success', 'Mensagem interativa com opções enviada com sucesso no WhatsApp!');
+    }
+
     public function updateStatus(Request $request, Conversation $conversation): RedirectResponse
     {
         $organizationId = $request->user()->organization_id;
