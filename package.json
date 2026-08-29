@@ -3,9 +3,8 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build --config vite.mix.js",
-        "production": "vite build --config vite.mix.js",
-        "dev": "vite --config vite.mix.js"
+        "build": "vite build",
+        "dev": "vite"
     },
     "devDependencies": {
         "axios": "^1.11.0",
