@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Message;
+use App\Services\EvolutionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -12,6 +13,10 @@ use Inertia\Response;
 
 class ConversationController extends Controller
 {
+    public function __construct(
+        protected EvolutionService $evolutionService
+    ) {}
+
     public function index(Request $request): Response
     {
         $organizationId = $request->user()->organization_id;
@@ -84,7 +89,8 @@ class ConversationController extends Controller
     public function storeMessage(Request $request, Conversation $conversation): RedirectResponse
     {
         $organizationId = $request->user()->organization_id;
-        $storeId = $request->attributes->get('store')->id;
+        $store = $request->attributes->get('store');
+        $storeId = $store->id;
 
         if ($conversation->organization_id !== $organizationId || $conversation->store_id !== $storeId) {
             abort(403);
@@ -94,6 +100,8 @@ class ConversationController extends Controller
             'body' => ['required', 'string', 'max:5000'],
         ]);
 
+        $toPhone = $conversation->customer?->whatsapp ?? $conversation->external_chat_id;
+
         $message = Message::create([
             'organization_id' => $organizationId,
             'conversation_id' => $conversation->id,
@@ -102,7 +110,7 @@ class ConversationController extends Controller
             'body' => $data['body'],
             'status' => 'sent',
             'from_phone' => 'store',
-            'to_phone' => $conversation->customer?->whatsapp ?? $conversation->external_chat_id,
+            'to_phone' => $toPhone,
             'sent_at' => now(),
         ]);
 
@@ -111,6 +119,14 @@ class ConversationController extends Controller
             'last_message_at' => now(),
             'status' => $conversation->status === 'closed' ? 'open' : $conversation->status,
         ]);
+
+        // Disparar envio real via Evolution API se configurado
+        $instanceName = $store->slug ?? 'dyvinus';
+        $evoResult = $this->evolutionService->sendMessage($instanceName, $toPhone, $data['body']);
+
+        if ($evoResult['success'] ?? false) {
+            $message->update(['status' => 'delivered']);
+        }
 
         return redirect()->route('conversations.index', ['chat' => $conversation->id])
             ->with('success', 'Mensagem enviada com sucesso!');

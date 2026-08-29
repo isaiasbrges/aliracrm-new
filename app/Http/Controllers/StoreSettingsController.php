@@ -41,6 +41,7 @@ class StoreSettingsController extends Controller
             'store' => [
                 'id'           => $currentStore->id,
                 'name'         => $currentStore->name,
+                'slug'         => $currentStore->slug,
                 'accent_color' => $currentStore->accent_color ?? '#2563eb',
                 'logo_url'     => $currentStore->logo_url,
             ],
@@ -50,6 +51,13 @@ class StoreSettingsController extends Controller
                 'slug' => $organization->slug,
             ],
             'stores' => $stores,
+            'evolution' => [
+                'webhook_url'    => url('/api/webhooks/evolution'),
+                'webhook_secret' => (string) config('services.evolution.webhook_secret', 'alira-evo-secret-2026'),
+                'api_url'        => (string) config('services.evolution.url', ''),
+                'instance_name'  => $currentStore->slug,
+                'is_configured'  => !empty(config('services.evolution.url')) && !empty(config('services.evolution.key')),
+            ],
         ]);
     }
 

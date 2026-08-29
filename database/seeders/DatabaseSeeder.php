@@ -14,15 +14,22 @@ class DatabaseSeeder extends Seeder
     {
         $organization = Organization::query()->updateOrCreate(
             ['slug' => 'alira-demo'],
-            ['name' => 'Alira Boutique & Moda', 'status' => 'active'],
+            ['name' => 'Alira Grupo & Varejo', 'status' => 'active'],
         );
 
-        $store = Store::query()->updateOrCreate(
+        // Loja 1: Dyvinus
+        $storeDyvinus = Store::query()->updateOrCreate(
+            ['organization_id' => $organization->id, 'slug' => 'dyvinus'],
+            ['name' => 'Dyvinus', 'active' => true, 'accent_color' => '#db2777'],
+        );
+        StoreCounter::query()->firstOrCreate(['store_id' => $storeDyvinus->id], ['last_number' => 100]);
+
+        // Loja 2: Loja Matriz
+        $storeMatriz = Store::query()->updateOrCreate(
             ['organization_id' => $organization->id, 'slug' => 'loja-principal'],
             ['name' => 'Loja Jardins (Matriz)', 'active' => true, 'accent_color' => '#2563eb'],
         );
-
-        StoreCounter::query()->firstOrCreate(['store_id' => $store->id], ['last_number' => 100]);
+        StoreCounter::query()->firstOrCreate(['store_id' => $storeMatriz->id], ['last_number' => 100]);
 
         User::query()->updateOrCreate(
             ['email' => 'demo@alira.local'],
@@ -32,7 +39,7 @@ class DatabaseSeeder extends Seeder
                 'password' => 'demo12345',
                 'role' => 'owner',
                 'active' => true,
-                'last_store_id' => $store->id,
+                'last_store_id' => $storeDyvinus->id,
             ],
         );
     }
